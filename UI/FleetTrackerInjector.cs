@@ -1356,7 +1356,6 @@ namespace SolarExpanseFleetTracker.UI
         {
             GameObject rowGO = MakeRowContainer("FilterRow", 30f);
             HorizontalLayoutGroup hlg = rowGO.GetComponent<HorizontalLayoutGroup>();
-            hlg.childAlignment = TextAnchor.MiddleRight;
 
             GameObject spacer = new GameObject("FilterSpacer", typeof(RectTransform));
             spacer.transform.SetParent(rowGO.transform, false);
