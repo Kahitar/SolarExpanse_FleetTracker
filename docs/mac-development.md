@@ -28,8 +28,8 @@ dotnet tool install --global ilspycmd
 
 ## Game Path
 
-The build expects `MAC_SOLAR_EXPANSE_ROOT` to point at the Solar Expanse game
-root inside the CrossOver bottle. The default is defined in `.mise.toml`:
+The build expects `SOLAR_EXPANSE_ROOT` to point at the Solar Expanse game
+root inside the CrossOver bottle. The default macOS path is defined in `.mise.toml`:
 
 ```text
 ~/Library/Application Support/CrossOver/Bottles/Steam/drive_c/Program Files (x86)/Steam/steamapps/common/Solar Expanse
@@ -39,7 +39,7 @@ If your bottle or Steam library differs, create `.mise.local.toml`:
 
 ```toml
 [env]
-MAC_SOLAR_EXPANSE_ROOT = "/absolute/path/to/Solar Expanse"
+SOLAR_EXPANSE_ROOT = "/absolute/path/to/Solar Expanse"
 ```
 
 That local file is ignored by git.
@@ -83,14 +83,14 @@ mise run release v1.0.0
 After starting the game through CrossOver, follow BepInEx logs from macOS:
 
 ```bash
-tail -f "$MAC_SOLAR_EXPANSE_ROOT/BepInEx/LogOutput.log"
+tail -f "$SOLAR_EXPANSE_ROOT/BepInEx/LogOutput.log"
 ```
 
 ## Notes
 
 - `Microsoft.NETFramework.ReferenceAssemblies` is referenced by the project so
   `net472` can build on macOS without installing Windows targeting packs.
-- The `.csproj` validates `MAC_SOLAR_EXPANSE_ROOT` before resolving references,
+- The `.csproj` validates `SOLAR_EXPANSE_ROOT` before resolving references,
   so a wrong bottle path should fail with a direct error.
 - `mise run build` copies `FleetTracker.dll` directly into
-  `$MAC_SOLAR_EXPANSE_ROOT/BepInEx/plugins`.
+  `$SOLAR_EXPANSE_ROOT/BepInEx/plugins`.

@@ -8,14 +8,14 @@ future BepInEx/Harmony mods against the current Solar Expanse assembly.
 
 - The game is a Unity/Mono game and can be modded with BepInEx plus Harmony.
 - This mod targets `net472`.
-- The project references game assemblies from `MAC_SOLAR_EXPANSE_ROOT`:
-  - `$MAC_SOLAR_EXPANSE_ROOT/BepInEx/core/BepInEx.dll`
-  - `$MAC_SOLAR_EXPANSE_ROOT/BepInEx/core/0Harmony.dll`
-  - `$MAC_SOLAR_EXPANSE_ROOT/Solar Expanse_Data/Managed/Assembly-CSharp.dll`
-  - Unity assemblies from `$MAC_SOLAR_EXPANSE_ROOT/Solar Expanse_Data/Managed/`
+- The project references game assemblies from `SOLAR_EXPANSE_ROOT`:
+  - `$SOLAR_EXPANSE_ROOT/BepInEx/core/BepInEx.dll`
+  - `$SOLAR_EXPANSE_ROOT/BepInEx/core/0Harmony.dll`
+  - `$SOLAR_EXPANSE_ROOT/Solar Expanse_Data/Managed/Assembly-CSharp.dll`
+  - Unity assemblies from `$SOLAR_EXPANSE_ROOT/Solar Expanse_Data/Managed/`
 - On this machine the installed CrossOver Steam copy had the game assembly at:
   - `/Users/niklas/Library/Application Support/CrossOver/Bottles/Steam/drive_c/Program Files (x86)/Steam/steamapps/common/Solar Expanse/Solar Expanse_Data/Managed/Assembly-CSharp.dll`
-- The repo-level `.mise.toml` defines the default macOS CrossOver path for `MAC_SOLAR_EXPANSE_ROOT`.
+- The repo-level `.mise.toml` defines the default macOS CrossOver path for `SOLAR_EXPANSE_ROOT`.
 - Useful metadata tools were not installed on PATH during the original conversion work:
   - `dotnet`
   - `monodis`

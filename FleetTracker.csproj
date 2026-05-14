@@ -8,7 +8,7 @@
     <RootNamespace>SolarExpanseFleetTracker</RootNamespace>
     <Optimize>false</Optimize>
     <DebugType>portable</DebugType>
-    <SolarExpanseRoot>$(MAC_SOLAR_EXPANSE_ROOT)</SolarExpanseRoot>
+    <SolarExpanseRoot>$(SOLAR_EXPANSE_ROOT)</SolarExpanseRoot>
     <BepInExCoreDir>$(SolarExpanseRoot)/BepInEx/core</BepInExCoreDir>
     <BepInExPluginsDir>$(SolarExpanseRoot)/BepInEx/plugins</BepInExPluginsDir>
     <SolarExpanseManagedDir>$(SolarExpanseRoot)/Solar Expanse_Data/Managed</SolarExpanseManagedDir>
@@ -16,13 +16,13 @@
 
   <Target Name="ValidateSolarExpanseRoot" BeforeTargets="ResolveAssemblyReferences">
     <Error Condition="'$(SolarExpanseRoot)' == ''"
-           Text="MAC_SOLAR_EXPANSE_ROOT is not set. Run through mise or set it to the Solar Expanse game root." />
+           Text="SOLAR_EXPANSE_ROOT is not set. Run through mise or set it to the Solar Expanse game root." />
     <Error Condition="'$(SolarExpanseRoot)' != '' and !Exists('$(SolarExpanseRoot)')"
-           Text="MAC_SOLAR_EXPANSE_ROOT does not exist: $(SolarExpanseRoot)" />
+           Text="SOLAR_EXPANSE_ROOT does not exist: $(SolarExpanseRoot)" />
     <Error Condition="'$(SolarExpanseRoot)' != '' and !Exists('$(BepInExCoreDir)/BepInEx.dll')"
            Text="Missing BepInEx.dll under $(BepInExCoreDir). Install BepInEx in the CrossOver game folder first." />
     <Error Condition="'$(SolarExpanseRoot)' != '' and !Exists('$(SolarExpanseManagedDir)/Assembly-CSharp.dll')"
-           Text="Missing Assembly-CSharp.dll under $(SolarExpanseManagedDir). Check MAC_SOLAR_EXPANSE_ROOT." />
+           Text="Missing Assembly-CSharp.dll under $(SolarExpanseManagedDir). Check SOLAR_EXPANSE_ROOT." />
   </Target>
 
   <Target Name="CopyToBepInExPlugins" AfterTargets="Build">
