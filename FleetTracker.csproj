@@ -4,8 +4,8 @@
     <TargetFramework>net472</TargetFramework>
     <LangVersion>8.0</LangVersion>
     <Nullable>enable</Nullable>
-    <AssemblyName>LifeSupportTracker</AssemblyName>
-    <RootNamespace>LifeSupportTracker</RootNamespace>
+    <AssemblyName>FleetTracker</AssemblyName>
+    <RootNamespace>SolarExpanseFleetTracker</RootNamespace>
     <Optimize>false</Optimize>
     <DebugType>portable</DebugType>
   </PropertyGroup>

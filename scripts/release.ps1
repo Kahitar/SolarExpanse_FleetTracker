@@ -1,6 +1,6 @@
 param([string]$Version)
 $ErrorActionPreference = "Stop"
-$name = "LifeSupportTracker"
+$name = "FleetTracker"
 
 if (-not $Version) {
     $raw = (Select-String -Path "CHANGELOG.md" -Pattern '## \[(\d+\.\d+\.\d+)\]' |
@@ -24,4 +24,4 @@ foreach ($line in Get-Content "CHANGELOG.md") {
 }
 
 gh release create $Version $zip --title "$name $Version" --notes ($notes -join "`n") --target main
-Write-Host "Done: https://github.com/jfmmm/SolarExpanse_LifeSupportTracker/releases/tag/$Version"
+Write-Host "Done: https://github.com/jfmmm/SolarExpanse_FleetTracker/releases/tag/$Version"

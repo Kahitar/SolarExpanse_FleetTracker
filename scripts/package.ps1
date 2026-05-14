@@ -1,5 +1,5 @@
 $ErrorActionPreference = "Stop"
-$name = "LifeSupportTracker"
+$name = "FleetTracker"
 
 dotnet build -c Release
 if ($LASTEXITCODE -ne 0) { exit 1 }
