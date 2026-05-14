@@ -754,7 +754,7 @@ namespace SolarExpanseFleetTracker.UI
 
             snapshot.AtBodies.RemoveAll(row =>
             {
-                if (bodyActive && !SameFilter(row.BodyName, _bodyFilter)) return true;
+                if (bodyActive && !BodyMatchesFilter(row.BodyName, _bodyFilter)) return true;
                 if (cargoActive) return true;
                 if (shipActive) row.Ships.RemoveAll(ship => !SameFilter(ship.DisplayName, _shipFilter));
                 return shipActive && row.Ships.Count == 0;
@@ -762,7 +762,7 @@ namespace SolarExpanseFleetTracker.UI
             snapshot.InTransit.RemoveAll(row => !MissionMatchesFilters(row, bodyActive, shipActive, cargoActive));
             snapshot.Planned.RemoveAll(row => !MissionMatchesFilters(row, bodyActive, shipActive, cargoActive));
             snapshot.Construction.RemoveAll(row =>
-                (bodyActive && !SameFilter(row.BodyName, _bodyFilter)) ||
+                (bodyActive && !BodyMatchesFilter(row.BodyName, _bodyFilter)) ||
                 (shipActive && !SameFilter(row.ShipTypeName, _shipFilter)) ||
                 cargoActive);
 
@@ -771,7 +771,7 @@ namespace SolarExpanseFleetTracker.UI
 
         private bool MissionMatchesFilters(MissionFleetRow row, bool bodyActive, bool shipActive, bool cargoActive)
         {
-            if (bodyActive && !SameFilter(row.OriginName, _bodyFilter) && !SameFilter(row.TargetName, _bodyFilter)) return false;
+            if (bodyActive && !BodyMatchesFilter(row.OriginName, _bodyFilter) && !BodyMatchesFilter(row.TargetName, _bodyFilter)) return false;
             if (shipActive && !row.Ships.Any(ship => SameFilter(ship.DisplayName, _shipFilter))) return false;
             if (cargoActive && !row.CargoLabels.Any(label => SameFilter(label, _cargoFilter))) return false;
             return true;
@@ -794,13 +794,13 @@ namespace SolarExpanseFleetTracker.UI
         private static List<string> BuildBodyFilterOptions(FleetSnapshot snapshot)
         {
             SortedSet<string> values = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (BodyFleetGroup row in snapshot.AtBodies) AddOption(values, FormatBody(row.BodySpriteName, row.BodyName));
+            foreach (BodyFleetGroup row in snapshot.AtBodies) AddBodyOption(values, row.BodySpriteName, row.BodyName);
             foreach (MissionFleetRow row in snapshot.InTransit.Concat(snapshot.Planned))
             {
-                AddOption(values, FormatBody(row.OriginSpriteName, row.OriginName));
-                AddOption(values, FormatBody(row.TargetSpriteName, row.TargetName));
+                AddBodyOption(values, row.OriginSpriteName, row.OriginName);
+                AddBodyOption(values, row.TargetSpriteName, row.TargetName);
             }
-            foreach (ConstructionFleetRow row in snapshot.Construction) AddOption(values, FormatBody(row.BodySpriteName, row.BodyName));
+            foreach (ConstructionFleetRow row in snapshot.Construction) AddBodyOption(values, row.BodySpriteName, row.BodyName);
             return WithAll(FilterAllBodies, values);
         }
 
@@ -828,6 +828,11 @@ namespace SolarExpanseFleetTracker.UI
             if (!string.IsNullOrEmpty(value)) values.Add(value);
         }
 
+        private static void AddBodyOption(SortedSet<string> values, string spriteName, string bodyName)
+        {
+            AddOption(values, FormatBody(spriteName, BaseBodyName(bodyName)));
+        }
+
         private static List<string> WithAll(string allLabel, SortedSet<string> values)
         {
             List<string> result = new List<string> { allLabel };
@@ -836,6 +841,9 @@ namespace SolarExpanseFleetTracker.UI
         }
 
         private static bool SameFilter(string left, string right) => string.Equals(FilterText(left), FilterText(right), StringComparison.OrdinalIgnoreCase);
+
+        private static bool BodyMatchesFilter(string bodyName, string filter) =>
+            string.Equals(BaseBodyName(bodyName), BaseBodyName(filter), StringComparison.OrdinalIgnoreCase);
 
         private void BuildShipsAtBodies(FleetSnapshot snapshot, Company player)
         {
@@ -1333,6 +1341,30 @@ namespace SolarExpanseFleetTracker.UI
                 text = text.Remove(start, end - start + 1);
             }
             return text.Trim();
+        }
+
+        private static string BaseBodyName(string value)
+        {
+            string text = FilterText(value);
+            if (string.IsNullOrEmpty(text)) return "";
+            text = StripTokenIgnoreCase(text, "[Orbit]").Trim();
+            text = StripTokenIgnoreCase(text, "(Orbit)").Trim();
+            if (text.EndsWith(" Orbit", StringComparison.OrdinalIgnoreCase))
+                text = text.Substring(0, text.Length - " Orbit".Length).Trim();
+            if (text.EndsWith("'s Orbit", StringComparison.OrdinalIgnoreCase))
+                text = text.Substring(0, text.Length - "'s Orbit".Length).Trim();
+            return text;
+        }
+
+        private static string StripTokenIgnoreCase(string value, string token)
+        {
+            string result = value ?? "";
+            while (true)
+            {
+                int index = result.IndexOf(token, StringComparison.OrdinalIgnoreCase);
+                if (index < 0) return result;
+                result = result.Remove(index, token.Length);
+            }
         }
 
         private static DateTime? GetCurrentTime()
