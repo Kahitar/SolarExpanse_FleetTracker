@@ -536,6 +536,10 @@ namespace SolarExpanseFleetTracker.UI
 
         private float _refreshTimer;
         private const float RefreshInterval = 5.0f;
+        private const string FilterAllBodies = "All bodies";
+        private const string FilterAllShips = "All ships";
+        private const string FilterAllCargo = "All cargo";
+        private string _bodyFilter = FilterAllBodies, _shipFilter = FilterAllShips, _cargoFilter = FilterAllCargo;
         private static readonly Color TextColor = new Color(0.85f, 0.85f, 0.85f);
         private static readonly Color MutedColor = new Color(0.55f, 0.55f, 0.55f);
         private static readonly Color HeaderColor = new Color(0.62f, 0.62f, 0.62f);
@@ -628,7 +632,14 @@ namespace SolarExpanseFleetTracker.UI
                     Destroy(ContentParent.GetChild(i).gameObject);
 
                 FleetSnapshot snapshot = BuildSnapshot();
+                List<string> bodyOptions = BuildBodyFilterOptions(snapshot);
+                List<string> shipOptions = BuildShipFilterOptions(snapshot);
+                List<string> cargoOptions = BuildCargoFilterOptions(snapshot);
+                NormalizeFilters(bodyOptions, shipOptions, cargoOptions);
+                ApplyFilters(snapshot);
+
                 AddTitleRow($"FLEET STATUS  ({snapshot.TotalShips} {Plural(snapshot.TotalShips, "ship", "ships")}, {snapshot.TotalMissions} {Plural(snapshot.TotalMissions, "mission", "missions")}, {snapshot.TotalConstruction} building)");
+                AddFilterRow(bodyOptions, shipOptions, cargoOptions);
 
                 if (!string.IsNullOrEmpty(snapshot.Message))
                 {
@@ -731,10 +742,100 @@ namespace SolarExpanseFleetTracker.UI
             snapshot.Planned.Sort((a, b) => NullableDateCompare(a.Start, b.Start));
             snapshot.Construction.Sort((a, b) => NullableDateCompare(a.Finish, b.Finish));
 
-            snapshot.TotalMissions = snapshot.InTransit.Count + snapshot.Planned.Count;
-            snapshot.TotalConstruction = snapshot.Construction.Sum(r => r.Count);
+            RecalculateTotals(snapshot);
             return snapshot;
         }
+
+        private void ApplyFilters(FleetSnapshot snapshot)
+        {
+            bool bodyActive = _bodyFilter != FilterAllBodies;
+            bool shipActive = _shipFilter != FilterAllShips;
+            bool cargoActive = _cargoFilter != FilterAllCargo;
+
+            snapshot.AtBodies.RemoveAll(row =>
+            {
+                if (bodyActive && !SameFilter(row.BodyName, _bodyFilter)) return true;
+                if (cargoActive) return true;
+                if (shipActive) row.Ships.RemoveAll(ship => !SameFilter(ship.DisplayName, _shipFilter));
+                return shipActive && row.Ships.Count == 0;
+            });
+            snapshot.InTransit.RemoveAll(row => !MissionMatchesFilters(row, bodyActive, shipActive, cargoActive));
+            snapshot.Planned.RemoveAll(row => !MissionMatchesFilters(row, bodyActive, shipActive, cargoActive));
+            snapshot.Construction.RemoveAll(row =>
+                (bodyActive && !SameFilter(row.BodyName, _bodyFilter)) ||
+                (shipActive && !SameFilter(row.ShipTypeName, _shipFilter)) ||
+                cargoActive);
+
+            RecalculateTotals(snapshot);
+        }
+
+        private bool MissionMatchesFilters(MissionFleetRow row, bool bodyActive, bool shipActive, bool cargoActive)
+        {
+            if (bodyActive && !SameFilter(row.OriginName, _bodyFilter) && !SameFilter(row.TargetName, _bodyFilter)) return false;
+            if (shipActive && !row.Ships.Any(ship => SameFilter(ship.DisplayName, _shipFilter))) return false;
+            if (cargoActive && !row.CargoLabels.Any(label => SameFilter(label, _cargoFilter))) return false;
+            return true;
+        }
+
+        private static void RecalculateTotals(FleetSnapshot snapshot)
+        {
+            snapshot.TotalShips = snapshot.AtBodies.Sum(r => r.Count) + snapshot.InTransit.Sum(r => r.ShipCount) + snapshot.Planned.Sum(r => r.ShipCount);
+            snapshot.TotalMissions = snapshot.InTransit.Count + snapshot.Planned.Count;
+            snapshot.TotalConstruction = snapshot.Construction.Sum(r => r.Count);
+        }
+
+        private void NormalizeFilters(List<string> bodies, List<string> ships, List<string> cargo)
+        {
+            if (!bodies.Any(option => SameFilter(option, _bodyFilter))) _bodyFilter = FilterAllBodies;
+            if (!ships.Any(option => SameFilter(option, _shipFilter))) _shipFilter = FilterAllShips;
+            if (!cargo.Any(option => SameFilter(option, _cargoFilter))) _cargoFilter = FilterAllCargo;
+        }
+
+        private static List<string> BuildBodyFilterOptions(FleetSnapshot snapshot)
+        {
+            SortedSet<string> values = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (BodyFleetGroup row in snapshot.AtBodies) AddOption(values, row.BodyName);
+            foreach (MissionFleetRow row in snapshot.InTransit.Concat(snapshot.Planned))
+            {
+                AddOption(values, row.OriginName);
+                AddOption(values, row.TargetName);
+            }
+            foreach (ConstructionFleetRow row in snapshot.Construction) AddOption(values, row.BodyName);
+            return WithAll(FilterAllBodies, values);
+        }
+
+        private static List<string> BuildShipFilterOptions(FleetSnapshot snapshot)
+        {
+            SortedSet<string> values = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (BodyFleetGroup row in snapshot.AtBodies)
+                foreach (ShipIconCount ship in row.Ships) AddOption(values, ship.DisplayName);
+            foreach (MissionFleetRow row in snapshot.InTransit.Concat(snapshot.Planned))
+                foreach (ShipIconCount ship in row.Ships) AddOption(values, ship.DisplayName);
+            foreach (ConstructionFleetRow row in snapshot.Construction) AddOption(values, row.ShipTypeName);
+            return WithAll(FilterAllShips, values);
+        }
+
+        private static List<string> BuildCargoFilterOptions(FleetSnapshot snapshot)
+        {
+            SortedSet<string> values = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (MissionFleetRow row in snapshot.InTransit.Concat(snapshot.Planned))
+                foreach (string label in row.CargoLabels) AddOption(values, label);
+            return WithAll(FilterAllCargo, values);
+        }
+
+        private static void AddOption(SortedSet<string> values, string value)
+        {
+            if (!string.IsNullOrEmpty(value)) values.Add(value);
+        }
+
+        private static List<string> WithAll(string allLabel, SortedSet<string> values)
+        {
+            List<string> result = new List<string> { allLabel };
+            result.AddRange(values);
+            return result;
+        }
+
+        private static bool SameFilter(string left, string right) => string.Equals(left ?? "", right ?? "", StringComparison.OrdinalIgnoreCase);
 
         private void BuildShipsAtBodies(FleetSnapshot snapshot, Company player)
         {
@@ -807,7 +908,8 @@ namespace SolarExpanseFleetTracker.UI
                     Ships = ships,
                     Start = launch,
                     Arrival = arrival,
-                    Cargo = FormatCargoIcons(ReadMemberValue(mi, "cargoAll", "CargoAll")),
+                    Cargo = FormatCargoIcons(ReadMemberValue(mi, "cargoAll", "CargoAll"), out List<string> cargoLabels),
+                    CargoLabels = cargoLabels,
                     OpenTarget = FindOpenSpacecraft(craftInfos)
                 };
 
@@ -1063,29 +1165,30 @@ namespace SolarExpanseFleetTracker.UI
             return null;
         }
 
-        private string FormatCargoIcons(object cargoAll)
+        private string FormatCargoIcons(object cargoAll, out List<string> labels)
         {
+            labels = new List<string>();
             if (cargoAll == null) return EmptyCargoText();
 
             List<string> parts = new List<string>();
-            AddCargoList(parts, ReadMemberValue(cargoAll, "listCargo", "listCargoData"));
-            AddCargoList(parts, ReadMemberValue(cargoAll, "listCargoToOrbit", "listCargoDataToOrbit"));
-            AddCargoList(parts, ReadMemberValue(cargoAll, "listCargoGravityAssists", "listCargoGravityAssists"));
-            AddCargoItem(parts, ReadMemberValue(cargoAll, "cargoFuel", "CargoFuel"), fuel: true);
+            AddCargoList(parts, labels, ReadMemberValue(cargoAll, "listCargo", "listCargoData"));
+            AddCargoList(parts, labels, ReadMemberValue(cargoAll, "listCargoToOrbit", "listCargoDataToOrbit"));
+            AddCargoList(parts, labels, ReadMemberValue(cargoAll, "listCargoGravityAssists", "listCargoGravityAssists"));
+            AddCargoItem(parts, labels, ReadMemberValue(cargoAll, "cargoFuel", "CargoFuel"), fuel: true);
 
             if (parts.Count == 0) return EmptyCargoText();
             return string.Join(" ", parts.Take(8));
         }
 
-        private void AddCargoList(List<string> parts, object listObject)
+        private void AddCargoList(List<string> parts, List<string> labels, object listObject)
         {
             if (listObject == null || listObject is string) return;
             if (!(listObject is IEnumerable enumerable)) return;
             foreach (object item in enumerable)
-                AddCargoItem(parts, item, fuel: false);
+                AddCargoItem(parts, labels, item, fuel: false);
         }
 
-        private void AddCargoItem(List<string> parts, object item, bool fuel)
+        private void AddCargoItem(List<string> parts, List<string> labels, object item, bool fuel)
         {
             if (item == null) return;
 
@@ -1103,6 +1206,12 @@ namespace SolarExpanseFleetTracker.UI
             if (string.IsNullOrEmpty(icon)) return;
 
             if (!parts.Contains(icon)) parts.Add(icon);
+
+            string label = ReadDisplayName(resourceType);
+            if (string.IsNullOrEmpty(label)) label = ReadDisplayName(moduleData);
+            if (string.IsNullOrEmpty(label) && fuel) label = "Fuel";
+            if (string.IsNullOrEmpty(label) && crew > 0) label = "Crew";
+            if (!string.IsNullOrEmpty(label) && !labels.Contains(label)) labels.Add(label);
         }
 
         private static string EmptyCargoText() => "<color=#666666>empty</color>";
@@ -1241,6 +1350,141 @@ namespace SolarExpanseFleetTracker.UI
             AddColumn(rowGO.transform, 80f, 0f, TextAlignmentOptions.MidlineLeft, FormatShipIconCount(row.ShipSpriteName, row.Count), 60f).color = TextColor;
             AddColumn(rowGO.transform, 130f, 0f, TextAlignmentOptions.MidlineRight, FormatDate(row.Finish, GetCurrentTime())).color = TextColor;
             AddColumn(rowGO.transform, 0f, 1f, TextAlignmentOptions.MidlineRight, row.Status, 110f).color = TextColor;
+        }
+
+        private void AddFilterRow(List<string> bodyOptions, List<string> shipOptions, List<string> cargoOptions)
+        {
+            GameObject rowGO = MakeRowContainer("FilterRow", 30f);
+            HorizontalLayoutGroup hlg = rowGO.GetComponent<HorizontalLayoutGroup>();
+            hlg.childAlignment = TextAnchor.MiddleRight;
+
+            GameObject spacer = new GameObject("FilterSpacer", typeof(RectTransform));
+            spacer.transform.SetParent(rowGO.transform, false);
+            spacer.AddComponent<LayoutElement>().flexibleWidth = 1f;
+
+            AddDropdown(rowGO.transform, "Body", bodyOptions, _bodyFilter, value => { _bodyFilter = value; RefreshRows(); });
+            AddDropdown(rowGO.transform, "Ship", shipOptions, _shipFilter, value => { _shipFilter = value; RefreshRows(); });
+            AddDropdown(rowGO.transform, "Cargo", cargoOptions, _cargoFilter, value => { _cargoFilter = value; RefreshRows(); });
+            AddClearFilterButton(rowGO.transform);
+        }
+
+        private void AddDropdown(Transform parent, string label, List<string> options, string selected, Action<string> onSelected)
+        {
+            GameObject root = new GameObject($"{label}Filter", typeof(RectTransform));
+            root.transform.SetParent(parent, false);
+            root.AddComponent<LayoutElement>().preferredWidth = 135f;
+            Image bg = root.AddComponent<Image>();
+            bg.color = new Color(0.08f, 0.10f, 0.12f, 0.95f);
+
+            TMP_Dropdown dropdown = root.AddComponent<TMP_Dropdown>();
+            int selectedIndex = Mathf.Max(0, options.FindIndex(option => SameFilter(option, selected)));
+            dropdown.options = options.Select(option => new TMP_Dropdown.OptionData(option)).ToList();
+            dropdown.value = selectedIndex;
+            dropdown.targetGraphic = bg;
+
+            TextMeshProUGUI caption = AddDropdownText(root.transform, "Label", $"{label}: {options[selectedIndex]}", TextAlignmentOptions.MidlineLeft);
+            caption.margin = new Vector4(6, 0, 16, 0);
+            dropdown.captionText = caption;
+            dropdown.template = BuildDropdownTemplate(root.transform, out TextMeshProUGUI itemText);
+            dropdown.itemText = itemText;
+            dropdown.onValueChanged.AddListener(index =>
+            {
+                if (index < 0 || index >= options.Count) return;
+                onSelected(options[index]);
+            });
+        }
+
+        private RectTransform BuildDropdownTemplate(Transform parent, out TextMeshProUGUI itemText)
+        {
+            GameObject templateGO = new GameObject("Template", typeof(RectTransform));
+            templateGO.transform.SetParent(parent, false);
+            RectTransform templateRT = templateGO.GetComponent<RectTransform>();
+            templateRT.anchorMin = new Vector2(0f, 0f);
+            templateRT.anchorMax = new Vector2(1f, 0f);
+            templateRT.pivot = new Vector2(0.5f, 1f);
+            templateRT.sizeDelta = new Vector2(0f, 140f);
+            templateRT.anchoredPosition = new Vector2(0f, -2f);
+            templateGO.SetActive(false);
+            Image templateBg = templateGO.AddComponent<Image>();
+            templateBg.color = new Color(0.05f, 0.06f, 0.08f, 0.98f);
+            templateGO.AddComponent<ScrollRect>();
+
+            GameObject viewportGO = new GameObject("Viewport", typeof(RectTransform));
+            viewportGO.transform.SetParent(templateGO.transform, false);
+            RectTransform viewportRT = viewportGO.GetComponent<RectTransform>();
+            viewportRT.anchorMin = Vector2.zero;
+            viewportRT.anchorMax = Vector2.one;
+            viewportRT.sizeDelta = Vector2.zero;
+            viewportGO.AddComponent<RectMask2D>();
+
+            GameObject contentGO = new GameObject("Content", typeof(RectTransform));
+            contentGO.transform.SetParent(viewportGO.transform, false);
+            RectTransform contentRT = contentGO.GetComponent<RectTransform>();
+            contentRT.anchorMin = new Vector2(0f, 1f);
+            contentRT.anchorMax = new Vector2(1f, 1f);
+            contentRT.pivot = new Vector2(0.5f, 1f);
+            contentRT.sizeDelta = Vector2.zero;
+            VerticalLayoutGroup vlg = contentGO.AddComponent<VerticalLayoutGroup>();
+            vlg.childControlWidth = true;
+            vlg.childControlHeight = true;
+            vlg.childForceExpandWidth = true;
+            vlg.childForceExpandHeight = false;
+            contentGO.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            ScrollRect scroll = templateGO.GetComponent<ScrollRect>();
+            scroll.viewport = viewportRT;
+            scroll.content = contentRT;
+            scroll.horizontal = false;
+            scroll.vertical = true;
+
+            GameObject itemGO = new GameObject("Item", typeof(RectTransform));
+            itemGO.transform.SetParent(contentGO.transform, false);
+            itemGO.AddComponent<LayoutElement>().preferredHeight = 22f;
+            Toggle toggle = itemGO.AddComponent<Toggle>();
+            Image itemBg = itemGO.AddComponent<Image>();
+            itemBg.color = Color.clear;
+            toggle.targetGraphic = itemBg;
+            itemText = AddDropdownText(itemGO.transform, "Item Label", "Option", TextAlignmentOptions.MidlineLeft);
+            itemText.margin = new Vector4(6, 0, 6, 0);
+            return templateRT;
+        }
+
+        private TextMeshProUGUI AddDropdownText(Transform parent, string name, string text, TextAlignmentOptions alignment)
+        {
+            GameObject labelGO = new GameObject(name, typeof(RectTransform));
+            labelGO.transform.SetParent(parent, false);
+            RectTransform rt = labelGO.GetComponent<RectTransform>();
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
+            rt.sizeDelta = Vector2.zero;
+            TextMeshProUGUI tmp = labelGO.AddComponent<TextMeshProUGUI>();
+            if (FontAsset != null) tmp.font = FontAsset;
+            tmp.text = text;
+            tmp.fontSize = 9.5f;
+            tmp.color = TextColor;
+            tmp.enableWordWrapping = false;
+            tmp.overflowMode = TextOverflowModes.Ellipsis;
+            tmp.alignment = alignment;
+            return tmp;
+        }
+
+        private void AddClearFilterButton(Transform parent)
+        {
+            GameObject buttonGO = new GameObject("ClearFilters", typeof(RectTransform));
+            buttonGO.transform.SetParent(parent, false);
+            buttonGO.AddComponent<LayoutElement>().preferredWidth = 70f;
+            Image bg = buttonGO.AddComponent<Image>();
+            bg.color = new Color(0.12f, 0.14f, 0.16f, 0.95f);
+            Button button = buttonGO.AddComponent<Button>();
+            button.targetGraphic = bg;
+            AddDropdownText(buttonGO.transform, "Label", "Clear", TextAlignmentOptions.Center);
+            button.onClick.AddListener(() =>
+            {
+                _bodyFilter = FilterAllBodies;
+                _shipFilter = FilterAllShips;
+                _cargoFilter = FilterAllCargo;
+                RefreshRows();
+            });
         }
 
         private void AddTitleRow(string text)
@@ -1671,6 +1915,8 @@ namespace SolarExpanseFleetTracker.UI
             public DateTime? Start;
             public DateTime? Arrival;
             public string Cargo;
+            public List<string> CargoLabels = new List<string>();
+            public int ShipCount => Ships.Sum(s => s.Count);
             public Spacecraft OpenTarget;
         }
 
