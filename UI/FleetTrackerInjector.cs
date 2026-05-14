@@ -841,7 +841,11 @@ namespace SolarExpanseFleetTracker.UI
 
         private static void AddBodyOption(SortedSet<string> values, string spriteName, string bodyName)
         {
-            AddOption(values, FormatBody(spriteName, BaseBodyName(bodyName)));
+            string baseName = BaseBodyName(bodyName);
+            if (string.IsNullOrEmpty(baseName)) return;
+            string duplicateKey = NormalizeResourceName(baseName);
+            if (values.Any(value => NormalizeResourceName(BaseBodyName(value)) == duplicateKey)) return;
+            AddOption(values, FormatBody(spriteName, baseName));
         }
 
         private static List<string> WithAll(string allLabel, SortedSet<string> values)
