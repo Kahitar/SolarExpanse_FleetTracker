@@ -46,4 +46,4 @@ notes="$(
 )"
 
 gh release create "$version" "$zip_path" --title "$name $version" --notes "$notes" --target main
-echo "Done: https://github.com/jfmmm/SolarExpanse_FleetTracker/releases/tag/$version"
+echo "Done: https://github.com/Kahitar/SolarExpanse_FleetTracker/releases/tag/$version"
