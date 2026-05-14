@@ -618,8 +618,19 @@ namespace SolarExpanseFleetTracker.UI
             if (_refreshTimer >= RefreshInterval)
             {
                 _refreshTimer = 0f;
+                if (AnyFilterDropdownOpen()) return;
                 RefreshRows();
             }
+        }
+
+        private bool AnyFilterDropdownOpen()
+        {
+            if (ContentParent == null) return false;
+            foreach (TMP_Dropdown dropdown in ContentParent.GetComponentsInChildren<TMP_Dropdown>(includeInactive: true))
+            {
+                if (dropdown != null && dropdown.IsExpanded) return true;
+            }
+            return false;
         }
 
         internal void RefreshRows()
