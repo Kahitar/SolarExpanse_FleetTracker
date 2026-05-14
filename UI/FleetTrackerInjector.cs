@@ -1478,6 +1478,7 @@ namespace SolarExpanseFleetTracker.UI
             DropdownScrollTuner tuner = root.AddComponent<DropdownScrollTuner>();
             tuner.Dropdown = dropdown;
             tuner.TemplateScroll = templateScroll;
+            tuner.PanelRT = PanelRT;
         }
 
         private RectTransform BuildDropdownTemplate(Transform parent, out TextMeshProUGUI itemText, out ScrollRect scroll)
@@ -1488,7 +1489,7 @@ namespace SolarExpanseFleetTracker.UI
             templateRT.anchorMin = new Vector2(0f, 0f);
             templateRT.anchorMax = new Vector2(1f, 0f);
             templateRT.pivot = new Vector2(0.5f, 1f);
-            templateRT.sizeDelta = new Vector2(0f, 140f);
+            templateRT.sizeDelta = new Vector2(0f, DropdownHeight());
             templateRT.anchoredPosition = new Vector2(0f, -2f);
             templateGO.SetActive(false);
             Image templateBg = templateGO.AddComponent<Image>();
@@ -1535,6 +1536,12 @@ namespace SolarExpanseFleetTracker.UI
             itemText = AddDropdownText(itemGO.transform, "Item Label", "Option", TextAlignmentOptions.MidlineLeft);
             itemText.margin = new Vector4(6, 0, 6, 0);
             return templateRT;
+        }
+
+        private float DropdownHeight()
+        {
+            float panelHeight = PanelRT != null ? PanelRT.sizeDelta.y : 360f;
+            return Mathf.Max(140f, panelHeight - 100f);
         }
 
         private TextMeshProUGUI AddDropdownText(Transform parent, string name, string text, TextAlignmentOptions alignment)
@@ -2025,11 +2032,14 @@ namespace SolarExpanseFleetTracker.UI
     {
         internal TMP_Dropdown Dropdown;
         internal ScrollRect TemplateScroll;
+        internal RectTransform PanelRT;
 
         private void Update()
         {
             ScrollRect active = FindActiveScroll();
             if (active == null) return;
+            RectTransform rt = active.GetComponent<RectTransform>();
+            if (rt != null) rt.sizeDelta = new Vector2(rt.sizeDelta.x, DropdownHeight());
             active.scrollSensitivity = 120f;
             active.movementType = ScrollRect.MovementType.Clamped;
 
@@ -2043,6 +2053,12 @@ namespace SolarExpanseFleetTracker.UI
                 group.interactable = true;
                 group.ignoreParentGroups = true;
             }
+        }
+
+        private float DropdownHeight()
+        {
+            float panelHeight = PanelRT != null ? PanelRT.sizeDelta.y : 360f;
+            return Mathf.Max(140f, panelHeight - 100f);
         }
 
         private ScrollRect FindActiveScroll()
