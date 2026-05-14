@@ -40,11 +40,11 @@ For the screenshot issue, the most relevant concrete list types are:
 
 ## Implementation approach
 
-A FleetTracker Harmony patch can adjust the object overview list instances after the game populates/rebuilds them:
+FleetTracker now adjusts the object overview list instances after the game populates/rebuilds them:
 
 1. Patch `ObjectInfoWindow.RebuildLayout()` with a postfix.
 2. For the target child `UIList<,>` components in that `ObjectInfoWindow`, reflect the private base fields.
-3. Set `maxRows` to the active row count or a high value.
+3. Set `maxRows` to a high value.
 4. Set `scrollView.vertical = false` and hide/disable the vertical scrollbar.
 5. Set the scroll view `RectTransform` height to `activeRows * rowHeight`.
 6. Call `LayoutRebuilder.ForceRebuildLayoutImmediate()` on the affected list/window root.
@@ -55,10 +55,11 @@ This keeps the outer `scrollRectAll` as the only scrollbar and removes the neste
 
 - This is feasible as a mod; no game asset editing appears necessary.
 - Use reflection because the controlling fields are private on the generic `UIList<T, TData>` base class.
-- Apply only to object overview lists. A broad patch to every `UIList<,>` could alter unrelated windows.
+- The implemented patch is scoped to object overview lists under `Game.UI.Windows.Elements.ObjectInfoElements`.
 - Very long lists will make the object overview content much taller. The outer body overview scrollbar remains necessary.
 - `UIFacilityList.FrameActive()` and `UIResorcesList.FrameActive()` temporarily resize lists during drag/drop; the postfix should re-apply after rebuilds and may also need hooks on `FrameActive`/`FrameDeActive` if drag/drop exposes regressions.
+- Implemented in `Patches/ObjectInfoListExpansionPatch.cs`.
 
 ## Conclusion
 
-The change is possible and reasonably low risk if scoped to `ObjectInfoWindow` sub-lists. A follow-up implementation task should add a targeted Harmony/reflection helper and test Facilities, Resources, Explored Resources, spacecraft, launch vehicle, and mission sections in-game.
+The change is possible and implemented as a scoped Harmony/reflection patch. Test Facilities, Resources, Explored Resources, spacecraft, launch vehicle, and mission sections in-game.
