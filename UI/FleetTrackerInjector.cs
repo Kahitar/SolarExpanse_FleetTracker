@@ -797,6 +797,7 @@ namespace SolarExpanseFleetTracker.UI
 
                 MissionFleetRow row = new MissionFleetRow
                 {
+                    Mission = mi,
                     Origin = origin,
                     Target = target,
                     OriginName = origin.ObjectName,
@@ -1218,7 +1219,10 @@ namespace SolarExpanseFleetTracker.UI
         private void BuildTransitRow(MissionFleetRow row, bool planned)
         {
             GameObject rowGO = MakeRowContainer($"Mission_{row.OriginName}_{row.TargetName}", 22f);
-            if (row.OpenTarget != null) MakeClickable(rowGO, () => OpenSpacecraft(row.OpenTarget));
+            if (row.Mission != null)
+                MakeClickable(rowGO, () => OpenMission(row.Mission, row.OpenTarget));
+            else if (row.OpenTarget != null)
+                MakeClickable(rowGO, () => OpenSpacecraft(row.OpenTarget));
 
             string route = $"{FormatBody(row.OriginSpriteName, row.OriginName)} <color=#777777>-></color> {FormatBody(row.TargetSpriteName, row.TargetName)}";
             AddColumn(rowGO.transform, planned ? 205f : 225f, 0f, TextAlignmentOptions.MidlineLeft, route, 160f).color = Color.white;
@@ -1350,11 +1354,68 @@ namespace SolarExpanseFleetTracker.UI
             catch (Exception e) { TrackerLog.LogWarning($"[FT] object click: {e.Message}"); }
         }
 
+        private void OpenMission(MissionInfo mi, Spacecraft fallback)
+        {
+            if (mi == null)
+            {
+                OpenSpacecraft(fallback);
+                return;
+            }
+
+            try
+            {
+                object windowType = FindWindowType("MissionInfo", "Mission", "Missions");
+                if (windowType != null && InvokeOpenWindow(windowType, mi)) return;
+
+                TrackerLog.LogWarning("[FT] mission click: mission window type not found");
+            }
+            catch (Exception e)
+            {
+                TrackerLog.LogWarning($"[FT] mission click: {e.Message}");
+            }
+
+            OpenSpacecraft(fallback);
+        }
+
         private void OpenSpacecraft(Spacecraft sc)
         {
             if (sc == null) return;
             try { UIManager.Instance.Open(EWindowType.SpaceCraftInfo, sc); }
             catch (Exception e) { TrackerLog.LogWarning($"[FT] ship click: {e.Message}"); }
+        }
+
+        private static object FindWindowType(params string[] names)
+        {
+            foreach (string name in names)
+            {
+                try
+                {
+                    if (Enum.IsDefined(typeof(EWindowType), name))
+                        return Enum.Parse(typeof(EWindowType), name);
+                }
+                catch { }
+            }
+            return null;
+        }
+
+        private static bool InvokeOpenWindow(object windowType, object payload)
+        {
+            UIManager ui = UIManager.Instance;
+            if (ui == null || windowType == null || payload == null) return false;
+
+            Type uiType = ui.GetType();
+            foreach (MethodInfo method in uiType.GetMethods(AnyMember))
+            {
+                if (!string.Equals(method.Name, "Open", StringComparison.OrdinalIgnoreCase)) continue;
+                ParameterInfo[] parameters = method.GetParameters();
+                if (parameters.Length != 2) continue;
+                if (!parameters[0].ParameterType.IsInstanceOfType(windowType)) continue;
+                if (!parameters[1].ParameterType.IsInstanceOfType(payload) && parameters[1].ParameterType != typeof(object)) continue;
+
+                method.Invoke(ui, new[] { windowType, payload });
+                return true;
+            }
+            return false;
         }
 
         private void UpdateIndicator(int shipCount)
@@ -1599,6 +1660,7 @@ namespace SolarExpanseFleetTracker.UI
 
         private sealed class MissionFleetRow
         {
+            public MissionInfo Mission;
             public ObjectInfo Origin;
             public ObjectInfo Target;
             public string OriginName;
