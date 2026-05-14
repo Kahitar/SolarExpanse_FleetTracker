@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+#MISE description="Build and package FleetTracker as a BepInEx zip"
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd -- "$script_dir/.." && pwd)"
+cd "$repo_root"
+
+name="FleetTracker"
+configuration="${CONFIGURATION:-Release}"
+framework="${FRAMEWORK:-net472}"
+dist_dir="dist"
+staging_dir="$dist_dir/staging"
+
+if ! command -v zip >/dev/null 2>&1; then
+  echo "error: zip is required to create release archives" >&2
+  exit 1
+fi
+
+"$script_dir/build"
+
+version="$(sed -nE 's/^## \[([0-9]+\.[0-9]+\.[0-9]+)\].*/\1/p' CHANGELOG.md | head -n 1)"
+if [[ -z "$version" ]]; then
+  echo "error: could not find a semantic version heading in CHANGELOG.md" >&2
+  exit 1
+fi
+
+dll_path="bin/$configuration/$framework/$name.dll"
+if [[ ! -f "$dll_path" ]]; then
+  echo "error: build output not found: $dll_path" >&2
+  exit 1
+fi
+
+rm -rf "$staging_dir"
+mkdir -p "$staging_dir/BepInEx/plugins"
+cp "$dll_path" "$staging_dir/BepInEx/plugins/"
+
+zip_path="$dist_dir/${name}_v${version}.zip"
+rm -f "$zip_path"
+(
+  cd "$staging_dir"
+  zip -qr "../${name}_v${version}.zip" BepInEx
+)
+rm -rf "$staging_dir"
+
+echo "Packaged: $zip_path"

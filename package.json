@@ -1,8 +1,8 @@
 {
   "private": true,
   "scripts": {
-    "build": "dotnet build -c Release",
-    "package": "powershell -ExecutionPolicy Bypass -File scripts/package.ps1",
-    "release": "powershell -ExecutionPolicy Bypass -File scripts/release.ps1"
+    "build": "mise run build",
+    "package": "mise run package",
+    "release": "mise run release"
   }
 }

@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+#MISE description="Build the FleetTracker mod DLL"
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd -- "$script_dir/.." && pwd)"
+cd "$repo_root"
+
+configuration="${CONFIGURATION:-Release}"
+
+if ! command -v dotnet >/dev/null 2>&1; then
+  echo "error: dotnet is required. Run: mise install" >&2
+  exit 1
+fi
+
+dotnet build FleetTracker.csproj -c "$configuration"

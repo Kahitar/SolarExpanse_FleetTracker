@@ -1,2 +1,9 @@
 [env]
-SOLAR_EXPANSE_ROOT = "$HOME/Library/Application Support/CrossOver/Bottles/Steam/drive_c/Program Files (x86)/Steam/steamapps/common/Solar Expanse"
+# Override this in .mise.local.toml if your CrossOver bottle or Steam library differs.
+MAC_SOLAR_EXPANSE_ROOT = "{{env.HOME}}/Library/Application Support/CrossOver/Bottles/Steam/drive_c/Program Files (x86)/Steam/steamapps/common/Solar Expanse"
+
+[tools]
+dotnet = "8"
+
+[task_config]
+includes = ["scripts"]

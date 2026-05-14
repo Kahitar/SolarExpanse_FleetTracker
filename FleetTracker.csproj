@@ -8,49 +8,69 @@
     <RootNamespace>SolarExpanseFleetTracker</RootNamespace>
     <Optimize>false</Optimize>
     <DebugType>portable</DebugType>
+    <SolarExpanseRoot>$(MAC_SOLAR_EXPANSE_ROOT)</SolarExpanseRoot>
+    <BepInExCoreDir>$(SolarExpanseRoot)/BepInEx/core</BepInExCoreDir>
+    <BepInExPluginsDir>$(SolarExpanseRoot)/BepInEx/plugins</BepInExPluginsDir>
+    <SolarExpanseManagedDir>$(SolarExpanseRoot)/Solar Expanse_Data/Managed</SolarExpanseManagedDir>
   </PropertyGroup>
 
-  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+  <Target Name="ValidateSolarExpanseRoot" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="'$(SolarExpanseRoot)' == ''"
+           Text="MAC_SOLAR_EXPANSE_ROOT is not set. Run through mise or set it to the Solar Expanse game root." />
+    <Error Condition="'$(SolarExpanseRoot)' != '' and !Exists('$(SolarExpanseRoot)')"
+           Text="MAC_SOLAR_EXPANSE_ROOT does not exist: $(SolarExpanseRoot)" />
+    <Error Condition="'$(SolarExpanseRoot)' != '' and !Exists('$(BepInExCoreDir)/BepInEx.dll')"
+           Text="Missing BepInEx.dll under $(BepInExCoreDir). Install BepInEx in the CrossOver game folder first." />
+    <Error Condition="'$(SolarExpanseRoot)' != '' and !Exists('$(SolarExpanseManagedDir)/Assembly-CSharp.dll')"
+           Text="Missing Assembly-CSharp.dll under $(SolarExpanseManagedDir). Check MAC_SOLAR_EXPANSE_ROOT." />
+  </Target>
+
+  <Target Name="CopyToBepInExPlugins" AfterTargets="Build">
+    <MakeDir Directories="$(BepInExPluginsDir)" />
     <Copy SourceFiles="$(OutputPath)$(AssemblyName).dll"
-          DestinationFolder="$(MSBuildProjectDirectory)\..\..\BepInEx\plugins"
+          DestinationFolder="$(BepInExPluginsDir)"
           OverwriteReadOnlyFiles="true" />
   </Target>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="All" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Reference Include="BepInEx">
-      <HintPath>..\..\BepInEx\core\BepInEx.dll</HintPath>
+      <HintPath>$(BepInExCoreDir)/BepInEx.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="0Harmony">
-      <HintPath>..\..\BepInEx\core\0Harmony.dll</HintPath>
+      <HintPath>$(BepInExCoreDir)/0Harmony.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Assembly-CSharp">
-      <HintPath>..\..\Solar Expanse_Data\Managed\Assembly-CSharp.dll</HintPath>
+      <HintPath>$(SolarExpanseManagedDir)/Assembly-CSharp.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine">
-      <HintPath>..\..\Solar Expanse_Data\Managed\UnityEngine.dll</HintPath>
+      <HintPath>$(SolarExpanseManagedDir)/UnityEngine.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
-      <HintPath>..\..\Solar Expanse_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+      <HintPath>$(SolarExpanseManagedDir)/UnityEngine.CoreModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.UI">
-      <HintPath>..\..\Solar Expanse_Data\Managed\UnityEngine.UI.dll</HintPath>
+      <HintPath>$(SolarExpanseManagedDir)/UnityEngine.UI.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.UIModule">
-      <HintPath>..\..\Solar Expanse_Data\Managed\UnityEngine.UIModule.dll</HintPath>
+      <HintPath>$(SolarExpanseManagedDir)/UnityEngine.UIModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Unity.TextMeshPro">
-      <HintPath>..\..\Solar Expanse_Data\Managed\Unity.TextMeshPro.dll</HintPath>
+      <HintPath>$(SolarExpanseManagedDir)/Unity.TextMeshPro.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Sirenix.Serialization">
-      <HintPath>..\..\Solar Expanse_Data\Managed\Sirenix.Serialization.dll</HintPath>
+      <HintPath>$(SolarExpanseManagedDir)/Sirenix.Serialization.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>
