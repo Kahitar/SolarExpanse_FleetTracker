@@ -794,13 +794,13 @@ namespace SolarExpanseFleetTracker.UI
         private static List<string> BuildBodyFilterOptions(FleetSnapshot snapshot)
         {
             SortedSet<string> values = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (BodyFleetGroup row in snapshot.AtBodies) AddOption(values, row.BodyName);
+            foreach (BodyFleetGroup row in snapshot.AtBodies) AddOption(values, FormatBody(row.BodySpriteName, row.BodyName));
             foreach (MissionFleetRow row in snapshot.InTransit.Concat(snapshot.Planned))
             {
-                AddOption(values, row.OriginName);
-                AddOption(values, row.TargetName);
+                AddOption(values, FormatBody(row.OriginSpriteName, row.OriginName));
+                AddOption(values, FormatBody(row.TargetSpriteName, row.TargetName));
             }
-            foreach (ConstructionFleetRow row in snapshot.Construction) AddOption(values, row.BodyName);
+            foreach (ConstructionFleetRow row in snapshot.Construction) AddOption(values, FormatBody(row.BodySpriteName, row.BodyName));
             return WithAll(FilterAllBodies, values);
         }
 
@@ -808,10 +808,10 @@ namespace SolarExpanseFleetTracker.UI
         {
             SortedSet<string> values = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (BodyFleetGroup row in snapshot.AtBodies)
-                foreach (ShipIconCount ship in row.Ships) AddOption(values, ship.DisplayName);
+                foreach (ShipIconCount ship in row.Ships) AddOption(values, FormatShip(ship.SpriteName, ship.DisplayName));
             foreach (MissionFleetRow row in snapshot.InTransit.Concat(snapshot.Planned))
-                foreach (ShipIconCount ship in row.Ships) AddOption(values, ship.DisplayName);
-            foreach (ConstructionFleetRow row in snapshot.Construction) AddOption(values, row.ShipTypeName);
+                foreach (ShipIconCount ship in row.Ships) AddOption(values, FormatShip(ship.SpriteName, ship.DisplayName));
+            foreach (ConstructionFleetRow row in snapshot.Construction) AddOption(values, FormatShip(row.ShipSpriteName, row.ShipTypeName));
             return WithAll(FilterAllShips, values);
         }
 
@@ -835,7 +835,7 @@ namespace SolarExpanseFleetTracker.UI
             return result;
         }
 
-        private static bool SameFilter(string left, string right) => string.Equals(left ?? "", right ?? "", StringComparison.OrdinalIgnoreCase);
+        private static bool SameFilter(string left, string right) => string.Equals(FilterText(left), FilterText(right), StringComparison.OrdinalIgnoreCase);
 
         private void BuildShipsAtBodies(FleetSnapshot snapshot, Company player)
         {
@@ -1207,14 +1207,36 @@ namespace SolarExpanseFleetTracker.UI
 
             if (!parts.Contains(icon)) parts.Add(icon);
 
-            string label = ReadDisplayName(resourceType);
-            if (string.IsNullOrEmpty(label)) label = ReadDisplayName(moduleData);
+            string label = ReadCargoLabel(resourceType);
+            if (string.IsNullOrEmpty(label)) label = ReadCargoLabel(moduleData);
             if (string.IsNullOrEmpty(label) && fuel) label = "Fuel";
             if (string.IsNullOrEmpty(label) && crew > 0) label = "Crew";
-            if (!string.IsNullOrEmpty(label) && !labels.Contains(label)) labels.Add(label);
+            if (!string.IsNullOrEmpty(label) && !labels.Any(existing => SameFilter(existing, label))) labels.Add($"{icon} {label}");
         }
 
         private static string EmptyCargoText() => "<color=#666666>empty</color>";
+
+        private static string ReadCargoLabel(object obj)
+        {
+            string label = ReadDisplayName(obj);
+            if (!string.IsNullOrEmpty(label)) return label;
+
+            string key = ReadResourceKey(obj);
+            if (!string.IsNullOrEmpty(key))
+            {
+                string normalized = key;
+                if (normalized.StartsWith("id_resource_", StringComparison.OrdinalIgnoreCase))
+                    normalized = normalized.Substring("id_resource_".Length);
+                foreach (KeyValuePair<string, string> pair in ResourceKeyByName)
+                    if (string.Equals(pair.Value, key, StringComparison.OrdinalIgnoreCase))
+                        return CultureInfo.InvariantCulture.TextInfo.ToTitleCase(pair.Key);
+                return CultureInfo.InvariantCulture.TextInfo.ToTitleCase(normalized.Replace("_", " "));
+            }
+
+            string spriteId = ReadStringMember(obj, "SpriteId", "spriteId", "SpriteID", "spriteID");
+            if (!string.IsNullOrEmpty(spriteId)) return spriteId.Replace("resource_definition_id_resource_", "").Replace("_", " ");
+            return "";
+        }
 
         private static string ResolveCargoIcon(object cargoDefinition)
         {
@@ -1298,6 +1320,21 @@ namespace SolarExpanseFleetTracker.UI
                 .ToArray());
         }
 
+        private static string FilterText(string value)
+        {
+            if (string.IsNullOrEmpty(value)) return "";
+            string text = value;
+            while (true)
+            {
+                int start = text.IndexOf("<sprite", StringComparison.OrdinalIgnoreCase);
+                if (start < 0) break;
+                int end = text.IndexOf(">", start, StringComparison.Ordinal);
+                if (end < 0) break;
+                text = text.Remove(start, end - start + 1);
+            }
+            return text.Trim();
+        }
+
         private static DateTime? GetCurrentTime()
         {
             try
@@ -1371,7 +1408,7 @@ namespace SolarExpanseFleetTracker.UI
         {
             GameObject root = new GameObject($"{label}Filter", typeof(RectTransform));
             root.transform.SetParent(parent, false);
-            root.AddComponent<LayoutElement>().preferredWidth = 135f;
+            root.AddComponent<LayoutElement>().preferredWidth = 160f;
             Image bg = root.AddComponent<Image>();
             bg.color = new Color(0.08f, 0.10f, 0.12f, 0.95f);
 
@@ -1384,16 +1421,19 @@ namespace SolarExpanseFleetTracker.UI
             TextMeshProUGUI caption = AddDropdownText(root.transform, "Label", $"{label}: {options[selectedIndex]}", TextAlignmentOptions.MidlineLeft);
             caption.margin = new Vector4(6, 0, 16, 0);
             dropdown.captionText = caption;
-            dropdown.template = BuildDropdownTemplate(root.transform, out TextMeshProUGUI itemText);
+            dropdown.template = BuildDropdownTemplate(root.transform, out TextMeshProUGUI itemText, out ScrollRect templateScroll);
             dropdown.itemText = itemText;
             dropdown.onValueChanged.AddListener(index =>
             {
                 if (index < 0 || index >= options.Count) return;
                 onSelected(options[index]);
             });
+            DropdownScrollTuner tuner = root.AddComponent<DropdownScrollTuner>();
+            tuner.Dropdown = dropdown;
+            tuner.TemplateScroll = templateScroll;
         }
 
-        private RectTransform BuildDropdownTemplate(Transform parent, out TextMeshProUGUI itemText)
+        private RectTransform BuildDropdownTemplate(Transform parent, out TextMeshProUGUI itemText, out ScrollRect scroll)
         {
             GameObject templateGO = new GameObject("Template", typeof(RectTransform));
             templateGO.transform.SetParent(parent, false);
@@ -1406,7 +1446,9 @@ namespace SolarExpanseFleetTracker.UI
             templateGO.SetActive(false);
             Image templateBg = templateGO.AddComponent<Image>();
             templateBg.color = new Color(0.05f, 0.06f, 0.08f, 0.98f);
-            templateGO.AddComponent<ScrollRect>();
+            scroll = templateGO.AddComponent<ScrollRect>();
+            scroll.scrollSensitivity = 120f;
+            scroll.movementType = ScrollRect.MovementType.Clamped;
 
             GameObject viewportGO = new GameObject("Viewport", typeof(RectTransform));
             viewportGO.transform.SetParent(templateGO.transform, false);
@@ -1423,6 +1465,7 @@ namespace SolarExpanseFleetTracker.UI
             contentRT.anchorMax = new Vector2(1f, 1f);
             contentRT.pivot = new Vector2(0.5f, 1f);
             contentRT.sizeDelta = Vector2.zero;
+            contentRT.anchoredPosition = Vector2.zero;
             VerticalLayoutGroup vlg = contentGO.AddComponent<VerticalLayoutGroup>();
             vlg.childControlWidth = true;
             vlg.childControlHeight = true;
@@ -1430,7 +1473,6 @@ namespace SolarExpanseFleetTracker.UI
             vlg.childForceExpandHeight = false;
             contentGO.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
-            ScrollRect scroll = templateGO.GetComponent<ScrollRect>();
             scroll.viewport = viewportRT;
             scroll.content = contentRT;
             scroll.horizontal = false;
@@ -1438,7 +1480,7 @@ namespace SolarExpanseFleetTracker.UI
 
             GameObject itemGO = new GameObject("Item", typeof(RectTransform));
             itemGO.transform.SetParent(contentGO.transform, false);
-            itemGO.AddComponent<LayoutElement>().preferredHeight = 22f;
+            itemGO.AddComponent<LayoutElement>().preferredHeight = 26f;
             Toggle toggle = itemGO.AddComponent<Toggle>();
             Image itemBg = itemGO.AddComponent<Image>();
             itemBg.color = Color.clear;
@@ -1929,6 +1971,45 @@ namespace SolarExpanseFleetTracker.UI
             public DateTime? Finish;
             public string Status;
             public int Count;
+        }
+    }
+
+    internal class DropdownScrollTuner : MonoBehaviour
+    {
+        internal TMP_Dropdown Dropdown;
+        internal ScrollRect TemplateScroll;
+
+        private void Update()
+        {
+            ScrollRect active = FindActiveScroll();
+            if (active == null) return;
+            active.scrollSensitivity = 120f;
+            active.movementType = ScrollRect.MovementType.Clamped;
+
+            foreach (MaskableGraphic graphic in active.GetComponentsInChildren<MaskableGraphic>(includeInactive: true))
+                graphic.raycastTarget = true;
+
+            CanvasGroup group = active.GetComponentInParent<CanvasGroup>();
+            if (group != null)
+            {
+                group.blocksRaycasts = true;
+                group.interactable = true;
+                group.ignoreParentGroups = true;
+            }
+        }
+
+        private ScrollRect FindActiveScroll()
+        {
+            if (Dropdown == null) return TemplateScroll;
+            string listName = $"Dropdown List";
+            foreach (Transform child in Dropdown.transform)
+            {
+                if (child == null || !child.gameObject.activeInHierarchy) continue;
+                if (!string.Equals(child.gameObject.name, listName, StringComparison.OrdinalIgnoreCase)) continue;
+                ScrollRect scroll = child.GetComponentInChildren<ScrollRect>(includeInactive: true);
+                if (scroll != null) return scroll;
+            }
+            return TemplateScroll;
         }
     }
 
