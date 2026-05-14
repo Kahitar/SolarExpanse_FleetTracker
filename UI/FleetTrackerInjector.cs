@@ -336,13 +336,16 @@ namespace SolarExpanseFleetTracker.UI
         internal RectTransform PanelRT;
         internal GameObject PanelGO;
 
-        private const float PanelExtraDrop = 324f;
+        private const float ButtonGap = 10f;
+        private const float ReservedLifeSupportButtonWidth = 150f;
         private RectTransform _rt;
         private Canvas _canvas;
         private RectTransform _canvasRT;
         private Vector2 _dragStartAnchoredPos;
         private Vector2 _pressScreenPos;
         private Vector2 _lastCanvasSize;
+        private bool _userMoved;
+        private bool _positionedAgainstLifeSupport;
 
         private void Awake()
         {
@@ -354,20 +357,83 @@ namespace SolarExpanseFleetTracker.UI
         private IEnumerator Start()
         {
             yield return null;
-            PositionRightOfNotificationButton();
+            PositionNextToKnownButtons();
         }
 
         private void Update()
         {
             if (_canvasRT == null) return;
             Vector2 sz = _canvasRT.rect.size;
-            if (sz == _lastCanvasSize) return;
-            _lastCanvasSize = sz;
-            ClampButton();
-            PlacePanelUnderButton();
+            if (sz != _lastCanvasSize)
+            {
+                _lastCanvasSize = sz;
+                if (!_userMoved) PositionNextToKnownButtons();
+                else ClampButton();
+                PlacePanelUnderButton();
+            }
+
+            if (!_userMoved && !_positionedAgainstLifeSupport && PositionLeftOfLifeSupportButton())
+                PlacePanelUnderButton();
         }
 
-        private void PositionRightOfNotificationButton()
+        private void PositionNextToKnownButtons()
+        {
+            if (PositionLeftOfLifeSupportButton()) return;
+            PositionWithLifeSupportSlotReserved();
+        }
+
+        private bool PositionLeftOfLifeSupportButton()
+        {
+            RectTransform lifeSupportRT = FindLifeSupportButton();
+            if (lifeSupportRT == null || _rt == null || _canvasRT == null) return false;
+            Camera cam = _canvas != null && _canvas.renderMode == RenderMode.ScreenSpaceOverlay
+                ? null : _canvas?.worldCamera;
+
+            Vector3[] corners = new Vector3[4];
+            lifeSupportRT.GetWorldCorners(corners);
+
+            Vector2 btnTopLeft;
+            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                    _canvasRT, new Vector2(corners[1].x, corners[1].y), cam, out btnTopLeft))
+            {
+                Log?.LogWarning("[FT] LifeSupport RectTransformUtility failed");
+                return false;
+            }
+
+            _rt.anchoredPosition = new Vector2(btnTopLeft.x - ButtonGap - _rt.sizeDelta.x, btnTopLeft.y);
+            _positionedAgainstLifeSupport = true;
+            ClampButton();
+            return true;
+        }
+
+        private RectTransform FindLifeSupportButton()
+        {
+            if (_canvas == null || _rt == null) return null;
+
+            foreach (RectTransform rt in _canvas.GetComponentsInChildren<RectTransform>(includeInactive: true))
+            {
+                if (rt == null || rt == _rt) continue;
+                string name = rt.gameObject.name ?? "";
+                if (name.Equals("modLifeSupportButton", StringComparison.OrdinalIgnoreCase) ||
+                    name.IndexOf("LifeSupport", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    if (rt.GetComponent<Button>() != null) return rt;
+                }
+            }
+
+            foreach (TextMeshProUGUI label in _canvas.GetComponentsInChildren<TextMeshProUGUI>(includeInactive: true))
+            {
+                if (label == null || string.IsNullOrEmpty(label.text)) continue;
+                if (label.text.IndexOf("LIFE SUPPORT", StringComparison.OrdinalIgnoreCase) < 0) continue;
+                Button button = label.GetComponentInParent<Button>();
+                RectTransform buttonRT = button != null ? button.GetComponent<RectTransform>() : null;
+                if (buttonRT != null && buttonRT != _rt) return buttonRT;
+            }
+
+            return null;
+        }
+
+        private void PositionWithLifeSupportSlotReserved()
         {
             if (ShowBtnRT == null || _rt == null || _canvasRT == null) return;
             Camera cam = _canvas != null && _canvas.renderMode == RenderMode.ScreenSpaceOverlay
@@ -376,15 +442,16 @@ namespace SolarExpanseFleetTracker.UI
             Vector3[] corners = new Vector3[4];
             ShowBtnRT.GetWorldCorners(corners);
 
-            Vector2 btnTopRight;
+            Vector2 btnTopLeft;
             if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(
-                    _canvasRT, new Vector2(corners[2].x, corners[2].y), cam, out btnTopRight))
+                    _canvasRT, new Vector2(corners[1].x, corners[1].y), cam, out btnTopLeft))
             {
                 Log?.LogWarning("[FT] RectTransformUtility failed - keeping parked position");
                 return;
             }
 
-            _rt.anchoredPosition = new Vector2(btnTopRight.x + 10f, btnTopRight.y - 5f);
+            float x = btnTopLeft.x - ButtonGap - ReservedLifeSupportButtonWidth - ButtonGap - _rt.sizeDelta.x;
+            _rt.anchoredPosition = new Vector2(x, btnTopLeft.y - 5f);
             ClampButton();
         }
 
@@ -393,7 +460,7 @@ namespace SolarExpanseFleetTracker.UI
             if (PanelGO == null || !PanelGO.activeSelf || PanelRT == null || _rt == null) return;
             Vector2 p = new Vector2(
                 _rt.anchoredPosition.x,
-                _rt.anchoredPosition.y - _rt.sizeDelta.y - 4f - PanelExtraDrop);
+                _rt.anchoredPosition.y - _rt.sizeDelta.y - 4f);
             ClampPanel(ref p);
             PanelRT.anchoredPosition = p;
         }
@@ -416,6 +483,7 @@ namespace SolarExpanseFleetTracker.UI
 
         public void OnBeginDrag(PointerEventData e)
         {
+            _userMoved = true;
             _dragStartAnchoredPos = _rt.anchoredPosition;
         }
 
@@ -472,6 +540,71 @@ namespace SolarExpanseFleetTracker.UI
         private static readonly Color MutedColor = new Color(0.55f, 0.55f, 0.55f);
         private static readonly Color HeaderColor = new Color(0.62f, 0.62f, 0.62f);
         private static readonly Color SectionColor = new Color(0.38f, 0.68f, 0.75f);
+        private static readonly Dictionary<string, string> ResourceSpriteByKey =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["id_resource_alloy"] = "resource_definition_id_resource_alloy",
+                ["id_resource_antimatter"] = "resource_definition_id_resource_antimatter",
+                ["id_resource_chips"] = "resource_definition_id_resource_chips",
+                ["id_resource_co2"] = "resource_definition_id_resource_co2",
+                ["id_resource_consumergoods"] = "resource_definition_id_resource_consumergoods",
+                ["id_resource_energy"] = "resource_definition_id_resource_energy",
+                ["id_resource_fuel"] = "resource_definition_id_resource_fuel",
+                ["id_resource_glass"] = "resource_definition_id_resource_glass",
+                ["id_resource_hel3"] = "resource_definition_id_resource_HEL3",
+                ["id_resource_human"] = "resource_definition_id_resource_human",
+                ["id_resource_hydrogen"] = "resource_definition_id_resource_hydrogen",
+                ["id_resource_metal"] = "resource_definition_id_resource_metal",
+                ["id_resource_nitrogen"] = "resource_definition_id_resource_nitrogen",
+                ["id_resource_noblegas"] = "resource_definition_id_resource_noblegas",
+                ["id_resource_oxygen"] = "resource_definition_id_resource_oxygen",
+                ["id_resource_plastic"] = "resource_definition_id_resource_plastic",
+                ["id_resource_raremetal"] = "resource_definition_id_resource_raremetal",
+                ["id_resource_silicon"] = "resource_definition_id_resource_silicon",
+                ["id_resource_steel"] = "resource_definition_id_resource_steel",
+                ["id_resource_supply"] = "resource_definition_id_resource_supply",
+                ["id_resource_uran"] = "resource_definition_id_resource_uran",
+                ["id_resource_volatile"] = "resource_definition_id_resource_volatile",
+                ["id_resource_water"] = "resource_definition_id_resource_water"
+            };
+        private static readonly Dictionary<string, string> ResourceKeyByName =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["alloys"] = "id_resource_alloy",
+                ["antimatter"] = "id_resource_antimatter",
+                ["co2"] = "id_resource_co2",
+                ["consumergoods"] = "id_resource_consumergoods",
+                ["electronics"] = "id_resource_chips",
+                ["chips"] = "id_resource_chips",
+                ["fissiles"] = "id_resource_uran",
+                ["uranium"] = "id_resource_uran",
+                ["fuel"] = "id_resource_fuel",
+                ["glass"] = "id_resource_glass",
+                ["helium3"] = "id_resource_hel3",
+                ["hel3"] = "id_resource_hel3",
+                ["humans"] = "id_resource_human",
+                ["crew"] = "id_resource_human",
+                ["hydrogen"] = "id_resource_hydrogen",
+                ["metals"] = "id_resource_metal",
+                ["metal"] = "id_resource_metal",
+                ["nitrogen"] = "id_resource_nitrogen",
+                ["noblegas"] = "id_resource_noblegas",
+                ["noblegases"] = "id_resource_noblegas",
+                ["oxygen"] = "id_resource_oxygen",
+                ["polymer"] = "id_resource_plastic",
+                ["plastic"] = "id_resource_plastic",
+                ["power"] = "id_resource_energy",
+                ["energy"] = "id_resource_energy",
+                ["raremetals"] = "id_resource_raremetal",
+                ["raremetal"] = "id_resource_raremetal",
+                ["silicon"] = "id_resource_silicon",
+                ["steel"] = "id_resource_steel",
+                ["supply"] = "id_resource_supply",
+                ["supplies"] = "id_resource_supply",
+                ["volatiles"] = "id_resource_volatile",
+                ["volatile"] = "id_resource_volatile",
+                ["water"] = "id_resource_water"
+            };
         private const BindingFlags AnyMember =
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.IgnoreCase;
 
@@ -508,9 +641,8 @@ namespace SolarExpanseFleetTracker.UI
                 {
                     AddSectionSeparator($"SHIPS AT BODIES ({snapshot.AtBodies.Sum(r => r.Count)})");
                     AddHeaderRow(
-                        Col("BODY", 175f, 0f, TextAlignmentOptions.MidlineLeft),
-                        Col("SHIP TYPE", 0f, 1f, TextAlignmentOptions.MidlineLeft, 180f),
-                        Col("COUNT", 55f, 0f, TextAlignmentOptions.MidlineRight));
+                        Col("BODY", 190f, 0f, TextAlignmentOptions.MidlineLeft),
+                        Col("SHIPS", 0f, 1f, TextAlignmentOptions.MidlineLeft, 220f));
                     foreach (BodyFleetGroup row in snapshot.AtBodies)
                         BuildAtBodyRow(row);
                 }
@@ -545,10 +677,9 @@ namespace SolarExpanseFleetTracker.UI
                     AddSectionSeparator($"SHIPS IN CONSTRUCTION ({snapshot.Construction.Sum(r => r.Count)})");
                     AddHeaderRow(
                         Col("BODY", 170f, 0f, TextAlignmentOptions.MidlineLeft),
-                        Col("SHIP TYPE", 0f, 1f, TextAlignmentOptions.MidlineLeft, 180f),
+                        Col("SHIP", 80f, 0f, TextAlignmentOptions.MidlineLeft),
                         Col("FINISH", 130f, 0f, TextAlignmentOptions.MidlineRight),
-                        Col("STATUS", 110f, 0f, TextAlignmentOptions.MidlineRight),
-                        Col("COUNT", 55f, 0f, TextAlignmentOptions.MidlineRight));
+                        Col("STATUS", 0f, 1f, TextAlignmentOptions.MidlineRight, 110f));
                     foreach (ConstructionFleetRow row in snapshot.Construction)
                         BuildConstructionRow(row);
                 }
@@ -593,10 +724,9 @@ namespace SolarExpanseFleetTracker.UI
             BuildConstructionRows(snapshot, player, allObjects, now);
 
             snapshot.AtBodies.Sort((a, b) =>
-            {
-                int body = string.Compare(a.BodyName, b.BodyName, StringComparison.OrdinalIgnoreCase);
-                return body != 0 ? body : string.Compare(a.ShipTypeName, b.ShipTypeName, StringComparison.OrdinalIgnoreCase);
-            });
+                string.Compare(a.BodyName, b.BodyName, StringComparison.OrdinalIgnoreCase));
+            foreach (BodyFleetGroup group in snapshot.AtBodies)
+                group.Ships.Sort((a, b) => string.Compare(a.DisplayName, b.DisplayName, StringComparison.OrdinalIgnoreCase));
             snapshot.InTransit.Sort((a, b) => NullableDateCompare(a.Arrival, b.Arrival));
             snapshot.Planned.Sort((a, b) => NullableDateCompare(a.Start, b.Start));
             snapshot.Construction.Sort((a, b) => NullableDateCompare(a.Finish, b.Finish));
@@ -625,7 +755,7 @@ namespace SolarExpanseFleetTracker.UI
                 string typeName = GetSpacecraftTypeName(sc.spacecraftType, Safe(() => sc.GetSpacecraftName()));
                 string shipSprite = ReadStringMember(sc.spacecraftType, "SpriteId");
                 string bodySprite = body.ImagePlanetUI?.name ?? "";
-                string key = $"{body.ObjectName}\u001f{typeName}\u001f{shipSprite}";
+                string key = $"{body.ObjectName}\u001f{bodySprite}";
 
                 if (!grouped.TryGetValue(key, out BodyFleetGroup row))
                 {
@@ -633,14 +763,11 @@ namespace SolarExpanseFleetTracker.UI
                     {
                         Body = body,
                         BodyName = body.ObjectName,
-                        BodySpriteName = bodySprite,
-                        ShipTypeName = typeName,
-                        ShipSpriteName = shipSprite,
-                        Count = 0
+                        BodySpriteName = bodySprite
                     };
                     grouped[key] = row;
                 }
-                row.Count++;
+                AddShipCount(row.Ships, typeName, shipSprite);
             }
             snapshot.AtBodies.AddRange(grouped.Values);
         }
@@ -666,8 +793,7 @@ namespace SolarExpanseFleetTracker.UI
                 if (launch == default(DateTime) || arrival == default(DateTime)) continue;
 
                 List<object> craftInfos = GetMissionCraftInfos(mi);
-                string ships = SummarizeCraftInfos(craftInfos);
-                if (string.IsNullOrEmpty(ships)) ships = "unassigned";
+                List<ShipIconCount> ships = GetCraftIconCounts(craftInfos);
 
                 MissionFleetRow row = new MissionFleetRow
                 {
@@ -680,7 +806,7 @@ namespace SolarExpanseFleetTracker.UI
                     Ships = ships,
                     Start = launch,
                     Arrival = arrival,
-                    Cargo = FormatCargo(ReadMemberValue(mi, "cargoAll", "CargoAll")),
+                    Cargo = FormatCargoIcons(ReadMemberValue(mi, "cargoAll", "CargoAll")),
                     OpenTarget = FindOpenSpacecraft(craftInfos)
                 };
 
@@ -877,6 +1003,20 @@ namespace SolarExpanseFleetTracker.UI
                 .Select(kv => kv.Value > 1 ? $"{kv.Value}x {kv.Key}" : kv.Key));
         }
 
+        private List<ShipIconCount> GetCraftIconCounts(List<object> craftInfos)
+        {
+            List<ShipIconCount> ships = new List<ShipIconCount>();
+            foreach (object craft in craftInfos)
+            {
+                string name = GetCraftTypeName(craft);
+                string spriteName = GetCraftSpriteName(craft);
+                if (string.IsNullOrEmpty(name) && string.IsNullOrEmpty(spriteName)) continue;
+                AddShipCount(ships, string.IsNullOrEmpty(name) ? "Spacecraft" : name, spriteName);
+            }
+            ships.Sort((a, b) => string.Compare(a.DisplayName, b.DisplayName, StringComparison.OrdinalIgnoreCase));
+            return ships;
+        }
+
         private string GetCraftTypeName(object craft)
         {
             if (craft == null) return "";
@@ -895,6 +1035,22 @@ namespace SolarExpanseFleetTracker.UI
             return ReadDisplayName(craft);
         }
 
+        private string GetCraftSpriteName(object craft)
+        {
+            if (craft == null) return "";
+
+            Spacecraft sc = craft as Spacecraft
+                ?? ReadMemberValue(craft, "spacecraft", "Spacecraft", "SpacecraftBuild") as Spacecraft;
+            if (sc != null)
+                return ReadStringMember(sc.spacecraftType, "SpriteId");
+
+            object spacecraftType = ReadMemberValue(craft, "SpacecraftType", "spacecraftType");
+            if (spacecraftType != null)
+                return ReadStringMember(spacecraftType, "SpriteId");
+
+            return ReadStringMember(craft, "SpriteId");
+        }
+
         private Spacecraft FindOpenSpacecraft(List<object> craftInfos)
         {
             foreach (object craft in craftInfos)
@@ -906,9 +1062,9 @@ namespace SolarExpanseFleetTracker.UI
             return null;
         }
 
-        private string FormatCargo(object cargoAll)
+        private string FormatCargoIcons(object cargoAll)
         {
-            if (cargoAll == null) return "empty";
+            if (cargoAll == null) return EmptyCargoText();
 
             List<string> parts = new List<string>();
             AddCargoList(parts, ReadMemberValue(cargoAll, "listCargo", "listCargoData"));
@@ -916,8 +1072,8 @@ namespace SolarExpanseFleetTracker.UI
             AddCargoList(parts, ReadMemberValue(cargoAll, "listCargoGravityAssists", "listCargoGravityAssists"));
             AddCargoItem(parts, ReadMemberValue(cargoAll, "cargoFuel", "CargoFuel"), fuel: true);
 
-            if (parts.Count == 0) return "empty";
-            return string.Join("; ", parts.Take(5)) + (parts.Count > 5 ? "; ..." : "");
+            if (parts.Count == 0) return EmptyCargoText();
+            return string.Join(" ", parts.Take(8));
         }
 
         private void AddCargoList(List<string> parts, object listObject)
@@ -937,17 +1093,99 @@ namespace SolarExpanseFleetTracker.UI
             object resourceType = ReadMemberValue(item, "resourceType", "ResourceType");
             object moduleData = ReadMemberValue(item, "moduleData", "ModuleData");
 
-            string name = ReadDisplayName(resourceType);
-            if (string.IsNullOrEmpty(name)) name = ReadDisplayName(moduleData);
-            if (string.IsNullOrEmpty(name) && fuel) name = "Fuel";
-            if (string.IsNullOrEmpty(name) && crew > 0) name = "Crew";
-            if (string.IsNullOrEmpty(name)) return;
             if (mass <= 0 && crew <= 0) return;
 
-            List<string> suffix = new List<string>();
-            if (mass > 0) suffix.Add(FormatTons(mass));
-            if (crew > 0) suffix.Add($"{crew:N0} crew");
-            parts.Add($"{name} {string.Join(", ", suffix)}");
+            string icon = ResolveCargoIcon(resourceType);
+            if (string.IsNullOrEmpty(icon)) icon = ResolveCargoIcon(moduleData);
+            if (string.IsNullOrEmpty(icon) && fuel) icon = ResourceSpriteTagForKey("id_resource_fuel");
+            if (string.IsNullOrEmpty(icon) && crew > 0) icon = ResourceSpriteTagForKey("id_resource_human");
+            if (string.IsNullOrEmpty(icon)) return;
+
+            if (!parts.Contains(icon)) parts.Add(icon);
+        }
+
+        private static string EmptyCargoText() => "<color=#666666>empty</color>";
+
+        private static string ResolveCargoIcon(object cargoDefinition)
+        {
+            if (cargoDefinition == null) return "";
+
+            foreach (string iconMember in new[] { "IconString", "GetIconString", "IconWithLinkString", "GetIconWithLinkString" })
+            {
+                string iconText = ReadStringMember(cargoDefinition, iconMember);
+                string spriteTag = ExtractFirstSpriteTag(iconText);
+                if (!string.IsNullOrEmpty(spriteTag)) return spriteTag;
+            }
+
+            string spriteId = ReadStringMember(cargoDefinition, "SpriteId", "spriteId", "SpriteID", "spriteID");
+            if (!string.IsNullOrEmpty(spriteId))
+            {
+                string spriteTag = ExtractFirstSpriteTag(spriteId);
+                if (!string.IsNullOrEmpty(spriteTag)) return spriteTag;
+                if (spriteId.StartsWith("id_resource_", StringComparison.OrdinalIgnoreCase))
+                    return ResourceSpriteTagForKey(spriteId);
+                return SpriteTag(spriteId);
+            }
+
+            string key = ReadResourceKey(cargoDefinition);
+            if (!string.IsNullOrEmpty(key)) return ResourceSpriteTagForKey(key);
+
+            string displayName = ReadDisplayName(cargoDefinition);
+            if (ResourceKeyByName.TryGetValue(NormalizeResourceName(displayName), out string mappedKey))
+                return ResourceSpriteTagForKey(mappedKey);
+
+            return "";
+        }
+
+        private static string ReadResourceKey(object obj)
+        {
+            foreach (string member in new[]
+            {
+                "Id", "ID", "id", "IDSave", "idSave", "ResourceDefinitionIDSave",
+                "resourceDefinitionIDSave", "IdResourceName", "idResourceName", "NameResources"
+            })
+            {
+                string value = ReadStringMember(obj, member);
+                if (string.IsNullOrEmpty(value)) continue;
+                int slash = value.LastIndexOf('/');
+                if (slash >= 0 && slash < value.Length - 1) value = value.Substring(slash + 1);
+                if (value.StartsWith("id_resource_", StringComparison.OrdinalIgnoreCase)) return value;
+            }
+            return "";
+        }
+
+        private static string ExtractFirstSpriteTag(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return "";
+            int start = text.IndexOf("<sprite", StringComparison.OrdinalIgnoreCase);
+            if (start < 0) return "";
+            int end = text.IndexOf(">", start, StringComparison.Ordinal);
+            return end < 0 ? "" : text.Substring(start, end - start + 1).Trim();
+        }
+
+        private static string ResourceSpriteTagForKey(string key)
+        {
+            if (string.IsNullOrEmpty(key)) return "";
+            if (ResourceSpriteByKey.TryGetValue(key, out string spriteName))
+                return SpriteTag(spriteName);
+            if (key.StartsWith("id_resource_", StringComparison.OrdinalIgnoreCase))
+                return SpriteTag($"resource_definition_{key}");
+            return "";
+        }
+
+        private static string SpriteTag(string spriteName)
+        {
+            if (string.IsNullOrEmpty(spriteName)) return "";
+            return $"<sprite name={spriteName}>";
+        }
+
+        private static string NormalizeResourceName(string value)
+        {
+            if (string.IsNullOrEmpty(value)) return "";
+            return new string(value
+                .Where(char.IsLetterOrDigit)
+                .Select(char.ToLowerInvariant)
+                .ToArray());
         }
 
         private static DateTime? GetCurrentTime()
@@ -971,11 +1209,10 @@ namespace SolarExpanseFleetTracker.UI
 
         private void BuildAtBodyRow(BodyFleetGroup row)
         {
-            GameObject rowGO = MakeRowContainer($"Body_{row.BodyName}_{row.ShipTypeName}", 22f);
+            GameObject rowGO = MakeRowContainer($"Body_{row.BodyName}", 24f);
             MakeClickable(rowGO, () => OpenObject(row.Body));
-            AddColumn(rowGO.transform, 175f, 0f, TextAlignmentOptions.MidlineLeft, FormatBody(row.BodySpriteName, row.BodyName), 120f).color = Color.white;
-            AddColumn(rowGO.transform, 0f, 1f, TextAlignmentOptions.MidlineLeft, FormatShip(row.ShipSpriteName, row.ShipTypeName), 180f).color = TextColor;
-            AddColumn(rowGO.transform, 55f, 0f, TextAlignmentOptions.MidlineRight, row.Count.ToString()).color = TextColor;
+            AddColumn(rowGO.transform, 190f, 0f, TextAlignmentOptions.MidlineLeft, FormatBody(row.BodySpriteName, row.BodyName), 130f).color = Color.white;
+            AddColumn(rowGO.transform, 0f, 1f, TextAlignmentOptions.MidlineLeft, FormatShipIconCounts(row.Ships), 220f).color = TextColor;
         }
 
         private void BuildTransitRow(MissionFleetRow row, bool planned)
@@ -985,7 +1222,7 @@ namespace SolarExpanseFleetTracker.UI
 
             string route = $"{FormatBody(row.OriginSpriteName, row.OriginName)} <color=#777777>-></color> {FormatBody(row.TargetSpriteName, row.TargetName)}";
             AddColumn(rowGO.transform, planned ? 205f : 225f, 0f, TextAlignmentOptions.MidlineLeft, route, 160f).color = Color.white;
-            AddColumn(rowGO.transform, planned ? 135f : 155f, 0f, TextAlignmentOptions.MidlineLeft, row.Ships, 110f).color = TextColor;
+            AddColumn(rowGO.transform, planned ? 135f : 155f, 0f, TextAlignmentOptions.MidlineLeft, FormatShipIconCounts(row.Ships), 110f).color = TextColor;
             if (planned)
                 AddColumn(rowGO.transform, 115f, 0f, TextAlignmentOptions.MidlineRight, FormatDate(row.Start, GetCurrentTime())).color = TextColor;
             AddColumn(rowGO.transform, planned ? 115f : 130f, 0f, TextAlignmentOptions.MidlineRight, FormatDate(row.Arrival, GetCurrentTime())).color = TextColor;
@@ -997,10 +1234,9 @@ namespace SolarExpanseFleetTracker.UI
             GameObject rowGO = MakeRowContainer($"Build_{row.BodyName}_{row.ShipTypeName}", 22f);
             MakeClickable(rowGO, () => OpenObject(row.Body));
             AddColumn(rowGO.transform, 170f, 0f, TextAlignmentOptions.MidlineLeft, FormatBody(row.BodySpriteName, row.BodyName), 125f).color = Color.white;
-            AddColumn(rowGO.transform, 0f, 1f, TextAlignmentOptions.MidlineLeft, FormatShip(row.ShipSpriteName, row.ShipTypeName), 180f).color = TextColor;
+            AddColumn(rowGO.transform, 80f, 0f, TextAlignmentOptions.MidlineLeft, FormatShipIconCount(row.ShipSpriteName, row.Count), 60f).color = TextColor;
             AddColumn(rowGO.transform, 130f, 0f, TextAlignmentOptions.MidlineRight, FormatDate(row.Finish, GetCurrentTime())).color = TextColor;
-            AddColumn(rowGO.transform, 110f, 0f, TextAlignmentOptions.MidlineRight, row.Status).color = TextColor;
-            AddColumn(rowGO.transform, 55f, 0f, TextAlignmentOptions.MidlineRight, row.Count.ToString()).color = TextColor;
+            AddColumn(rowGO.transform, 0f, 1f, TextAlignmentOptions.MidlineRight, row.Status, 110f).color = TextColor;
         }
 
         private void AddTitleRow(string text)
@@ -1142,6 +1378,40 @@ namespace SolarExpanseFleetTracker.UI
         {
             string icon = !string.IsNullOrEmpty(spriteName) ? $"<sprite name={spriteName}> " : "";
             return $"{icon}{name}";
+        }
+
+        private static string FormatShipIconCounts(IEnumerable<ShipIconCount> ships)
+        {
+            List<string> parts = new List<string>();
+            foreach (ShipIconCount ship in ships)
+                parts.Add(FormatShipIconCount(ship.SpriteName, ship.Count));
+            return parts.Count > 0 ? string.Join("  ", parts) : "<color=#777777>?</color>";
+        }
+
+        private static string FormatShipIconCount(string spriteName, int count)
+        {
+            string icon = !string.IsNullOrEmpty(spriteName)
+                ? $"<sprite name={spriteName}>"
+                : "<color=#777777>?</color>";
+            return $"{icon}<color=#A8A8A8>{Mathf.Max(1, count)}</color>";
+        }
+
+        private static void AddShipCount(List<ShipIconCount> ships, string displayName, string spriteName)
+        {
+            string key = $"{displayName}\u001f{spriteName}";
+            ShipIconCount existing = ships.FirstOrDefault(s => s.Key == key);
+            if (existing == null)
+            {
+                existing = new ShipIconCount
+                {
+                    Key = key,
+                    DisplayName = displayName,
+                    SpriteName = spriteName,
+                    Count = 0
+                };
+                ships.Add(existing);
+            }
+            existing.Count++;
         }
 
         private static string GetSpacecraftTypeName(object spacecraftType, string fallback)
@@ -1315,8 +1585,15 @@ namespace SolarExpanseFleetTracker.UI
             public ObjectInfo Body;
             public string BodyName;
             public string BodySpriteName;
-            public string ShipTypeName;
-            public string ShipSpriteName;
+            public readonly List<ShipIconCount> Ships = new List<ShipIconCount>();
+            public int Count => Ships.Sum(s => s.Count);
+        }
+
+        private sealed class ShipIconCount
+        {
+            public string Key;
+            public string DisplayName;
+            public string SpriteName;
             public int Count;
         }
 
@@ -1328,7 +1605,7 @@ namespace SolarExpanseFleetTracker.UI
             public string TargetName;
             public string OriginSpriteName;
             public string TargetSpriteName;
-            public string Ships;
+            public List<ShipIconCount> Ships = new List<ShipIconCount>();
             public DateTime? Start;
             public DateTime? Arrival;
             public string Cargo;
