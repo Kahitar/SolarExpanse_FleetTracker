@@ -265,6 +265,21 @@
 
     <section>
       <div class="feasibility">
+        <div class="answer" style="grid-column: 1 / -1;">
+          <h2>Metadata inspection result</h2>
+          <p>Option 1 is viable. The game assembly contains dedicated native cyclical mission UI classes:</p>
+          <ul>
+            <li><code>CycleMissionAllList</code> owns row prefabs, parent containers, and active row lists.</li>
+            <li><code>MissionRowCyclicalNew.SetData(CycleMissionsData)</code> is the best current row-level patch target.</li>
+            <li>Legacy <code>MissionRowCyclical.SetData(CycleMissionsData)</code> exists as a fallback target.</li>
+            <li><code>CycleMissionsData</code> exposes route, status, cargo, craft count, and cycle data needed by the mockup.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="feasibility">
         <div class="answer">
           <h2>Is the mockup technically possible?</h2>
           <p><strong>Yes.</strong> FleetTracker already creates custom Unity UI at runtime using the same building blocks this mockup needs: cloned panel styling, RectTransforms, scroll views, layout groups, buttons, TextMeshPro labels, and reflection-safe data reads.</p>
@@ -272,17 +287,17 @@
         </div>
         <div class="answer warning">
           <h2>Is option 1 proven?</h2>
-          <p><strong>Not yet.</strong> Patching native rows in place is possible in principle with Harmony, but it depends on finding a stable native row rebuild method, prefab, or transform hierarchy.</p>
-          <p>If the native rows are brittle, replacing the native panel content is the safer route to the same visual result.</p>
+          <p><strong>Yes, viable.</strong> Metadata inspection found dedicated native cyclical mission list and row classes, including public row SetData methods that are suitable Harmony patch targets.</p>
+          <p>Best first approach: patch MissionRowCyclicalNew.SetData, preserve native buttons, and adjust the row's visual hierarchy/text after the game binds data.</p>
         </div>
         <div class="answer" style="grid-column: 1 / -1;">
           <h2>Confidence</h2>
           <table>
             <tr><th>Item</th><th>Confidence</th><th>Reason</th></tr>
             <tr><td>Mockup layout as Unity UI</td><td>High</td><td>Matches UI primitives FleetTracker already uses.</td></tr>
-            <tr><td>Mockup inside native panel bounds</td><td>Medium-high</td><td>Requires reliable native panel/container discovery.</td></tr>
-            <tr><td>Patch native rows in place</td><td>Medium</td><td>Needs metadata/runtime inspection of native cyclical mission UI.</td></tr>
-            <tr><td>Preserve native edit/cancel actions</td><td>Medium-low</td><td>Should wait until native validation methods are identified.</td></tr>
+            <tr><td>Mockup inside native panel bounds</td><td>High</td><td>Native list, row prefabs, and row parent containers exist.</td></tr>
+            <tr><td>Patch native rows in place</td><td>Medium-high</td><td>MissionRowCyclicalNew.SetData and legacy MissionRowCyclical.SetData are patchable.</td></tr>
+            <tr><td>Preserve native edit/cancel actions</td><td>Medium</td><td>Native edit/delete/pause/play buttons exist and should be preserved, not recreated.</td></tr>
           </table>
         </div>
       </div>

@@ -28,7 +28,7 @@ The current native cyclical missions overview is hard to scan. FleetTracker can 
 
 ## Technical feasibility answer
 
-Short answer: yes, the mockup is technically possible, but the safest implementation path is probably not a pure rewrite of existing native rows on the first attempt.
+Short answer after metadata inspection: yes, Option 1 is viable. The game has specific native cyclical mission list and row classes with stable-looking patch targets.
 
 - The side-panel-sized mockup is feasible because FleetTracker already creates custom Unity UI at runtime: cloned game panel background, `RectTransform` sizing, scroll view, `VerticalLayoutGroup`, `ContentSizeFitter`, buttons, TextMeshPro labels, and reflection-safe data reads.
 - Building that layout inside the native cyclical mission panel should be possible if we can reliably locate the panel/content container when the native tab opens.
@@ -40,9 +40,52 @@ Practical confidence:
 | Item | Feasibility | Confidence | Notes |
 | --- | --- | --- | --- |
 | Mockup layout as Unity UI | Technically feasible | High | Existing FleetTracker UI code already uses the required Unity UI primitives. |
-| Same layout inside native panel bounds | Technically feasible | Medium-high | Needs reliable panel/container discovery. |
-| Patch native rows in place | Possible, not yet proven | Medium | Needs metadata/runtime inspection of the native cyclical mission UI. |
-| Preserve native edit/cancel actions | Possible, not yet proven | Medium-low | Should not be done until native validation methods are identified. |
+| Same layout inside native panel bounds | Technically feasible | High | Metadata shows dedicated native list/row classes and containers. |
+| Patch native rows in place | Viable | Medium-high | Public `SetData(CycleMissionsData)` row methods are stable Harmony targets. |
+| Preserve native edit/cancel actions | Plausible | Medium | `MissionRowCyclicalNew` has native `edit`, `delete`, `pause`, and `play` buttons; preserve rather than recreate them. |
+
+## Native UI metadata inspection findings
+
+Inspection method:
+
+- Read `Assembly-CSharp.dll` through a temporary .NET metadata inspector from inside `SolarExpanse_FleetTracker`.
+- Removed the temporary inspector after use; only these findings remain documented.
+
+Relevant native classes found:
+
+| Class | Relevant members | Meaning for Option 1 |
+| --- | --- | --- |
+| `Game.UI.Windows.Windows.MissionsWindow` | private `cycleMissionAllList`, private `cyclicalMission`, `RefreshUI()`, `ShowCyclicalMission(CycleMissionsData)`, `SetData(object)`, `Show()` | The native missions window owns a dedicated cyclical mission list and exposes refresh/show lifecycle methods that can be patched. |
+| `Game.UI.Windows.Elements.MissionsElements.CycleMissionAllList` | private `missionRowCyclicalPrefab`, `missionRowCyclicalPrefabNew`, `parentForPrefab`, `parentForPrefabNew`, `grid`, `gridNew`, `listMRC`, `listMRCNew`, public `ShowCyclicalMission(CycleMissionsData)`, public `OnEnable()` | This is the strongest Option 1 target. It owns the row prefabs, row parent containers, and active row lists. |
+| `Game.UI.Windows.Elements.MissionsElements.MissionRowCyclical` | private label fields `a`, `b`, `cargoStart`, `cargoEnd`, `countMission`, `ends`, `lvA`, `lvB`, `sc`, `transferType`; private `buttonDelete`; public `SetData(CycleMissionsData)` | Legacy/native row has direct fields for the dense overview labels. A postfix on `SetData` could reformat text or alter child layout. |
+| `MissionRowCyclicalNew` | private `AtoB`, `BtoA`, `delete`, `edit`, `pause`, `play`, `imageShowCyclicalMission`; public `SetData(CycleMissionsData)`, public `ShowCyclicalMission()` | Newer native row already models A→B/B→A directions and has edit/delete/pause/play buttons. This is likely the current best row-level target. |
+| `MissionRowNew` | fields `sourceText`, `destinationText`, `resourceText`, `actionBtn`, `cycleMissionRepeating`; public `SetMissionInfo(...)`; property `CycleMissionsData` | Direction sub-rows can likely be adjusted if `MissionRowCyclicalNew` delegates A→B/B→A rendering to them. |
+| `Game.UI.Windows.Elements.PlanMissionElements.CycleMissionsData` | properties `A`, `B`, `ListSC`, `CountSC`, `CountMission`, `Pause`, `TransferType`, `CargoStart`, `CargoEnd`, `Ends`, `EndsData`, `cargoAllStart`, `cargoAllEnd`, `MissionName()` | Runtime data needed by the mockup is available from the row's `CycleMissionsData`. |
+| `Game.UI.Windows.Elements.PlanMissionElements.CycleMissionManager` | public `GetAllCycleMission()`, `GetAllCycleMission(Company)`, `GetSCNameFrom(CycleMissionsData)`, `GetSCFrom(CycleMissionsData)`, `RemoveCycleMission(...)`, `RefreshAfterEdit(...)` | Provides a data source and native management actions if row reconstruction needs to query all cyclical missions. |
+
+Option 1 viability conclusion:
+
+- Viable: yes.
+- Confidence: medium-high for read-only visual improvement.
+- Best technical target: patch `CycleMissionAllList` and/or `MissionRowCyclicalNew.SetData(CycleMissionsData)`.
+- Safest first implementation: postfix row setup after native `SetData`, reuse existing row objects/buttons, and only adjust visual hierarchy/text.
+- Higher-risk implementation: fully replace instantiated native rows. This is possible because `CycleMissionAllList` owns prefabs and parent containers, but it risks breaking edit/delete/pause/play unless those controls are carefully preserved.
+
+Recommended patch strategy for Option 1:
+
+1. Patch `MissionRowCyclicalNew.SetData(CycleMissionsData)` with a Harmony postfix.
+2. Read the row's private `cmd`, `AtoB`, `BtoA`, `edit`, `delete`, `pause`, and `play` fields by reflection.
+3. Reformat the existing row into a compact card, preserving native buttons and their existing listeners.
+4. Use `CycleMissionsData` properties for route/status/count/cargo summary.
+5. Add a small marker component/name to avoid rebuilding the same row repeatedly.
+6. If the active game uses the legacy row instead, apply the same pattern to `Game.UI.Windows.Elements.MissionsElements.MissionRowCyclical.SetData(CycleMissionsData)`.
+7. Patch `CycleMissionAllList.OnEnable()` or `ShowCyclicalMission(...)` only if row-level postfixes are not enough to trigger refresh/reflow.
+
+Remaining unknowns before implementation:
+
+- Whether the running game uses `MissionRowCyclicalNew` or the legacy `MissionRowCyclical` for the current UI state (`CycleMissionAllList` has a private `newVersion` flag).
+- Exact transform names/sizes of the row prefab at runtime.
+- Whether TextMeshPro auto-size/layout components fight custom sizing; this can be handled during prototype by adding/adjusting layout components after `SetData`.
 
 ## Option 1: Patch the existing native side panel in place
 
@@ -74,7 +117,7 @@ Cons / risks:
 
 Best use:
 
-- Preferred path if inspection finds a stable row-building method or stable transform hierarchy for the cyclical mission panel. If those targets are not stable, use Option 2 to preserve the native panel shell while controlling the content.
+- Preferred path. Metadata inspection found dedicated cyclical mission list/row classes and public row `SetData(CycleMissionsData)` methods, which are suitable Harmony patch targets.
 
 ## Option 2: Replace the native panel content at runtime
 
@@ -90,7 +133,7 @@ Possible changes:
 
 Pros:
 
-- Still feels like the native cyclical mission overview.
+- Still feels like the native cyclical mission overview, and remains a practical fallback.
 - Gives more layout control than patching individual original rows.
 - Can be designed specifically for side-panel constraints.
 - Lower risk than modifying many original row components individually.
@@ -136,8 +179,8 @@ Best use:
 
 Proceed in this order:
 
-1. Try to adapt the native cyclical mission side panel in place.
-2. If original rows are too brittle, replace the native panel's content area while keeping the native shell/entry point. This is the most likely path to reproduce the HTML mockup reliably.
+1. Implement Option 1 first by patching `MissionRowCyclicalNew.SetData(CycleMissionsData)` and, if needed, legacy `MissionRowCyclical.SetData(CycleMissionsData)`.
+2. If row-level patches fight the prefab layout too much, replace the native panel's content area while keeping the native shell/entry point.
 3. Only build a separate FleetTracker overview if native-panel modification is unsafe or disproportionately expensive.
 
 ## Recommended next discovery step
