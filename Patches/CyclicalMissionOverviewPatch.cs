@@ -14,7 +14,7 @@ namespace SolarExpanseFleetTracker.Patches
     internal static class CyclicalMissionOverviewPatch
     {
         private const string MarkerName = "modFleetTrackerCyclicalMissionCard";
-        private const float CardHeight = 148f;
+        private const float CardHeight = 118f;
 
         private static readonly string[] ButtonFieldNames = { "edit", "delete", "pause", "play", "buttonDelete", "actionBtn" };
         private static readonly Dictionary<Type, RowAccess> AccessByType = new Dictionary<Type, RowAccess>();
@@ -122,12 +122,12 @@ namespace SolarExpanseFleetTracker.Patches
             rect.offsetMax = new Vector2(-4f, -4f);
 
             Image bg = card.AddComponent<Image>();
-            bg.color = new Color(0.035f, 0.047f, 0.065f, 0.94f);
+            bg.color = new Color(0.07f, 0.09f, 0.12f, 0.86f);
             bg.raycastTarget = false;
 
             VerticalLayoutGroup layout = card.AddComponent<VerticalLayoutGroup>();
-            layout.padding = new RectOffset(10, 10, 8, 8);
-            layout.spacing = 6f;
+            layout.padding = new RectOffset(8, 8, 6, 6);
+            layout.spacing = 3f;
             layout.childControlWidth = true;
             layout.childControlHeight = true;
             layout.childForceExpandWidth = true;
@@ -138,172 +138,90 @@ namespace SolarExpanseFleetTracker.Patches
 
         private static void BuildCard(Transform parent, object data, List<Button> nativeButtons, TMP_FontAsset font)
         {
-            GameObject header = MakeRow(parent, "Header", 8f);
-            header.GetComponent<LayoutElement>().preferredHeight = 30f;
-
-            MakeIconBadge(header.transform, "⇄", font, new Color(0.14f, 0.42f, 0.72f, 0.95f), 28f);
-
-            GameObject titleStack = new GameObject("TitleStack", typeof(RectTransform));
-            titleStack.transform.SetParent(header.transform, false);
-            LayoutElement titleLayout = titleStack.AddComponent<LayoutElement>();
-            titleLayout.flexibleWidth = 1f;
-            titleLayout.preferredHeight = 30f;
-            VerticalLayoutGroup titleGroup = titleStack.AddComponent<VerticalLayoutGroup>();
-            titleGroup.spacing = 0f;
-            titleGroup.childControlWidth = true;
-            titleGroup.childControlHeight = true;
-            titleGroup.childForceExpandWidth = true;
-            titleGroup.childForceExpandHeight = false;
-
-            TextMeshProUGUI route = MakeText(titleStack.transform, "Route", font, 15f, FontStyles.Bold, TextAlignmentOptions.MidlineLeft);
+            GameObject header = MakeRow(parent, "Header", 4f);
+            TextMeshProUGUI route = MakeText(header.transform, "Route", font, 16f, FontStyles.Bold, TextAlignmentOptions.MidlineLeft);
             route.text = $"{FormatEndpoint(GetMember(data, "A"))} ↔ {FormatEndpoint(GetMember(data, "B"))}";
-            route.color = new Color(0.94f, 0.97f, 1f, 1f);
+            route.color = new Color(0.92f, 0.96f, 1f, 1f);
             route.GetComponent<LayoutElement>().flexibleWidth = 1f;
-
-            TextMeshProUGUI subtitle = MakeText(titleStack.transform, "Subtitle", font, 10f, FontStyles.Normal, TextAlignmentOptions.MidlineLeft);
-            subtitle.text = Shorten(CleanTypeName(Convert.ToString(GetMember(data, "TransferType") ?? "Cyclical transfer")), 42);
-            subtitle.color = new Color(0.48f, 0.66f, 0.82f, 1f);
 
             TextMeshProUGUI status = MakePill(header.transform, font);
             status.text = FormatStatus(data);
-            ApplyPillStyle(status, GetStatusColor(data));
+            status.color = GetStatusColor(data);
 
-            GameObject metrics = MakeRow(parent, "Metrics", 6f);
-            metrics.GetComponent<LayoutElement>().preferredHeight = 34f;
-            MakeMetricChip(metrics.transform, "SC", FormatCraftCompact(data), font, new Color(0.12f, 0.22f, 0.34f, 0.9f));
-            MakeMetricChip(metrics.transform, "#", FormatRunCount(data), font, new Color(0.16f, 0.18f, 0.27f, 0.9f));
-            MakeMetricChip(metrics.transform, "END", FormatEndCompact(data), font, new Color(0.18f, 0.16f, 0.24f, 0.9f));
+            TextMeshProUGUI craft = MakeText(parent, "Craft", font, 12f, FontStyles.Normal, TextAlignmentOptions.MidlineLeft);
+            craft.text = FormatCraft(data);
+            craft.color = new Color(0.76f, 0.84f, 0.92f, 1f);
 
-            GameObject cargoRow = MakeRow(parent, "Cargo", 8f);
-            cargoRow.GetComponent<LayoutElement>().preferredHeight = 40f;
-            MakeCargoBox(cargoRow.transform, "A → B", FormatCargo(GetMember(data, "CargoStart"), GetMember(data, "cargoAllStart")), font);
-            MakeCargoBox(cargoRow.transform, "B → A", FormatCargo(GetMember(data, "CargoEnd"), GetMember(data, "cargoAllEnd")), font);
+            TextMeshProUGUI counts = MakeText(parent, "Counts", font, 12f, FontStyles.Normal, TextAlignmentOptions.MidlineLeft);
+            counts.text = FormatCounts(data);
+            counts.color = new Color(0.68f, 0.76f, 0.86f, 1f);
+
+            GameObject cargoRow = MakeRow(parent, "Cargo", 6f);
+            MakeCargoLane(cargoRow.transform, "A→B", FormatCargo(GetMember(data, "CargoStart"), GetMember(data, "cargoAllStart")), font);
+            MakeCargoLane(cargoRow.transform, "B→A", FormatCargo(GetMember(data, "CargoEnd"), GetMember(data, "cargoAllEnd")), font);
 
             if (nativeButtons.Count > 0)
             {
-                PlaceNativeActions(parent, nativeButtons);
+                GameObject actions = MakeRow(parent, "NativeActions", 4f);
+                LayoutElement spacer = new GameObject("Spacer", typeof(RectTransform)).AddComponent<LayoutElement>();
+                spacer.transform.SetParent(actions.transform, false);
+                spacer.flexibleWidth = 1f;
+
+                foreach (Button button in nativeButtons)
+                {
+                    if (button == null)
+                    {
+                        continue;
+                    }
+
+                    button.transform.SetParent(actions.transform, false);
+                    button.gameObject.SetActive(true);
+                    button.transform.SetAsLastSibling();
+                    RectTransform buttonRect = button.transform as RectTransform;
+                    if (buttonRect != null)
+                    {
+                        buttonRect.anchorMin = new Vector2(0.5f, 0.5f);
+                        buttonRect.anchorMax = new Vector2(0.5f, 0.5f);
+                        buttonRect.pivot = new Vector2(0.5f, 0.5f);
+                        buttonRect.sizeDelta = new Vector2(24f, 22f);
+                    }
+
+                    LayoutElement le = button.GetComponent<LayoutElement>() ?? button.gameObject.AddComponent<LayoutElement>();
+                    le.ignoreLayout = false;
+                    le.minWidth = 24f;
+                    le.preferredWidth = 24f;
+                    le.minHeight = 22f;
+                    le.preferredHeight = 22f;
+                    le.flexibleWidth = 0f;
+                    le.flexibleHeight = 0f;
+                }
             }
         }
 
-        private static void MakeIconBadge(Transform parent, string icon, TMP_FontAsset font, Color color, float size)
+        private static void MakeCargoLane(Transform parent, string label, string value, TMP_FontAsset font)
         {
-            GameObject badge = new GameObject("IconBadge", typeof(RectTransform));
-            badge.transform.SetParent(parent, false);
-            Image bg = badge.AddComponent<Image>();
-            bg.color = color;
-            bg.raycastTarget = false;
-            LayoutElement layout = badge.AddComponent<LayoutElement>();
-            layout.minWidth = size;
-            layout.preferredWidth = size;
-            layout.minHeight = size;
-            layout.preferredHeight = size;
+            GameObject lane = new GameObject(label, typeof(RectTransform));
+            lane.transform.SetParent(parent, false);
+            LayoutElement laneLayout = lane.AddComponent<LayoutElement>();
+            laneLayout.flexibleWidth = 1f;
+            laneLayout.preferredHeight = 22f;
 
-            TextMeshProUGUI text = MakeText(badge.transform, "Icon", font, 15f, FontStyles.Bold, TextAlignmentOptions.Center);
-            text.text = icon;
-            text.color = new Color(0.9f, 0.97f, 1f, 1f);
-            RectTransform rect = text.transform as RectTransform;
-            rect.anchorMin = Vector2.zero;
-            rect.anchorMax = Vector2.one;
-            rect.offsetMin = Vector2.zero;
-            rect.offsetMax = Vector2.zero;
-            LayoutElement textLayout = text.GetComponent<LayoutElement>();
-            textLayout.ignoreLayout = true;
-        }
-
-        private static void MakeMetricChip(Transform parent, string icon, string value, TMP_FontAsset font, Color bgColor)
-        {
-            GameObject chip = new GameObject("Metric" + icon, typeof(RectTransform));
-            chip.transform.SetParent(parent, false);
-            Image bg = chip.AddComponent<Image>();
-            bg.color = bgColor;
-            bg.raycastTarget = false;
-            LayoutElement chipLayout = chip.AddComponent<LayoutElement>();
-            chipLayout.flexibleWidth = 1f;
-            chipLayout.preferredHeight = 34f;
-
-            HorizontalLayoutGroup layout = chip.AddComponent<HorizontalLayoutGroup>();
-            layout.padding = new RectOffset(6, 6, 4, 4);
-            layout.spacing = 5f;
+            HorizontalLayoutGroup layout = lane.AddComponent<HorizontalLayoutGroup>();
+            layout.spacing = 3f;
             layout.childControlWidth = true;
             layout.childControlHeight = true;
             layout.childForceExpandWidth = false;
             layout.childForceExpandHeight = false;
 
-            TextMeshProUGUI iconText = MakeText(chip.transform, "Icon", font, 10f, FontStyles.Bold, TextAlignmentOptions.Center);
-            iconText.text = icon;
-            iconText.color = new Color(0.52f, 0.78f, 1f, 1f);
-            iconText.GetComponent<LayoutElement>().preferredWidth = 24f;
+            TextMeshProUGUI prefix = MakeText(lane.transform, label + "Label", font, 11f, FontStyles.Bold, TextAlignmentOptions.MidlineLeft);
+            prefix.text = label;
+            prefix.color = new Color(0.68f, 0.84f, 1f, 1f);
+            prefix.GetComponent<LayoutElement>().preferredWidth = 32f;
 
-            TextMeshProUGUI text = MakeText(chip.transform, "Value", font, 11f, FontStyles.Bold, TextAlignmentOptions.MidlineLeft);
+            TextMeshProUGUI text = MakeText(lane.transform, label + "Value", font, 11f, FontStyles.Normal, TextAlignmentOptions.MidlineLeft);
             text.text = value;
-            text.color = new Color(0.88f, 0.93f, 0.98f, 1f);
+            text.color = new Color(0.82f, 0.86f, 0.88f, 1f);
             text.GetComponent<LayoutElement>().flexibleWidth = 1f;
-        }
-
-        private static void MakeCargoBox(Transform parent, string label, string value, TMP_FontAsset font)
-        {
-            GameObject box = new GameObject("Cargo" + label, typeof(RectTransform));
-            box.transform.SetParent(parent, false);
-            Image bg = box.AddComponent<Image>();
-            bg.color = new Color(0.08f, 0.105f, 0.135f, 0.92f);
-            bg.raycastTarget = false;
-            LayoutElement boxLayout = box.AddComponent<LayoutElement>();
-            boxLayout.flexibleWidth = 1f;
-            boxLayout.preferredHeight = 40f;
-
-            VerticalLayoutGroup layout = box.AddComponent<VerticalLayoutGroup>();
-            layout.padding = new RectOffset(7, 7, 4, 4);
-            layout.spacing = 0f;
-            layout.childControlWidth = true;
-            layout.childControlHeight = true;
-            layout.childForceExpandWidth = true;
-            layout.childForceExpandHeight = false;
-
-            TextMeshProUGUI title = MakeText(box.transform, "CargoTitle", font, 10f, FontStyles.Bold, TextAlignmentOptions.MidlineLeft);
-            title.text = "▸ " + label;
-            title.color = new Color(0.58f, 0.82f, 1f, 1f);
-
-            TextMeshProUGUI text = MakeText(box.transform, "CargoValue", font, 11f, FontStyles.Normal, TextAlignmentOptions.MidlineLeft);
-            text.text = value;
-            text.color = new Color(0.86f, 0.9f, 0.92f, 1f);
-        }
-
-        private static void PlaceNativeActions(Transform parent, List<Button> nativeButtons)
-        {
-            GameObject actions = MakeRow(parent, "NativeActions", 5f);
-            actions.GetComponent<LayoutElement>().preferredHeight = 24f;
-            LayoutElement spacer = new GameObject("Spacer", typeof(RectTransform)).AddComponent<LayoutElement>();
-            spacer.transform.SetParent(actions.transform, false);
-            spacer.flexibleWidth = 1f;
-
-            foreach (Button button in nativeButtons)
-            {
-                if (button == null)
-                {
-                    continue;
-                }
-
-                button.transform.SetParent(actions.transform, false);
-                button.gameObject.SetActive(true);
-                button.transform.SetAsLastSibling();
-                RectTransform buttonRect = button.transform as RectTransform;
-                if (buttonRect != null)
-                {
-                    buttonRect.anchorMin = new Vector2(0.5f, 0.5f);
-                    buttonRect.anchorMax = new Vector2(0.5f, 0.5f);
-                    buttonRect.pivot = new Vector2(0.5f, 0.5f);
-                    buttonRect.sizeDelta = new Vector2(26f, 22f);
-                }
-
-                LayoutElement le = button.GetComponent<LayoutElement>() ?? button.gameObject.AddComponent<LayoutElement>();
-                le.ignoreLayout = false;
-                le.minWidth = 26f;
-                le.preferredWidth = 26f;
-                le.minHeight = 22f;
-                le.preferredHeight = 22f;
-                le.flexibleWidth = 0f;
-                le.flexibleHeight = 0f;
-            }
         }
 
         private static GameObject MakeRow(Transform parent, string name, float spacing)
@@ -347,15 +265,6 @@ namespace SolarExpanseFleetTracker.Patches
             layout.preferredWidth = 58f;
             layout.flexibleWidth = 0f;
             return pill;
-        }
-
-        private static void ApplyPillStyle(TextMeshProUGUI pill, Color color)
-        {
-            pill.color = color;
-            Image bg = pill.gameObject.AddComponent<Image>();
-            bg.color = new Color(color.r * 0.20f, color.g * 0.20f, color.b * 0.20f, 0.95f);
-            bg.raycastTarget = false;
-            pill.raycastTarget = false;
         }
 
         private static RowAccess GetAccess(Type rowType)
@@ -443,37 +352,6 @@ namespace SolarExpanseFleetTracker.Patches
                 suffix += $" +{extra}";
             }
             return $"Craft {count}{suffix}";
-        }
-
-        private static string FormatCraftCompact(object data)
-        {
-            int count = ToInt(GetMember(data, "CountSC"));
-            object list = GetMember(data, "ListSC");
-            string first = Enumerate(list).Select(FormatSpacecraft).FirstOrDefault(s => !string.IsNullOrEmpty(s));
-            if (!string.IsNullOrEmpty(first))
-            {
-                return count > 1 ? $"{count} · {first}" : first;
-            }
-            return count > 0 ? count.ToString() : "—";
-        }
-
-        private static string FormatRunCount(object data)
-        {
-            int missionCount = ToInt(GetMember(data, "CountMission"));
-            return missionCount > 0 ? missionCount.ToString() : "—";
-        }
-
-        private static string FormatEndCompact(object data)
-        {
-            string ends = Convert.ToString(GetMember(data, "Ends") ?? string.Empty);
-            if (string.IsNullOrEmpty(ends) || ends == "None")
-            {
-                return "∞";
-            }
-
-            object endsData = GetMember(data, "EndsData");
-            string text = endsData == null ? CleanTypeName(ends) : CleanTypeName(endsData.ToString());
-            return Shorten(text, 12);
         }
 
         private static string FormatSpacecraft(object spacecraft)
