@@ -3,16 +3,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Cyclical Missions Overview Mockup</title>
+  <title>Native Cyclical Mission Side Panel Mockup</title>
   <style>
     :root {
-      --bg: #101722;
-      --panel: #182331;
-      --panel-2: #213247;
+      --game-bg: #121a25;
+      --panel: #1a2635;
+      --panel-2: #223449;
+      --panel-3: #152131;
       --text: #e8f0ff;
-      --muted: #93a7bd;
-      --line: #30465d;
-      --accent: #62c7ff;
+      --muted: #98aabd;
+      --line: #344b63;
+      --accent: #63c7ff;
       --good: #58d68d;
       --warn: #f5b041;
       --danger: #ff6b6b;
@@ -23,244 +24,348 @@
     body {
       margin: 0;
       min-height: 100vh;
-      background: radial-gradient(circle at top, #1d2b3b 0, var(--bg) 48rem);
+      display: grid;
+      place-items: center;
+      background: radial-gradient(circle at 35% 15%, #26384b 0, var(--game-bg) 42rem);
       color: var(--text);
-      font: 14px/1.4 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      padding: 28px;
+      font: 13px/1.35 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      padding: 24px;
     }
 
-    .window {
-      max-width: 1180px;
-      margin: 0 auto;
-      background: rgba(24, 35, 49, 0.96);
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
+    .game-frame {
+      width: 980px;
+      min-height: 620px;
+      position: relative;
+      border: 1px solid #26384c;
+      border-radius: 8px;
+      background:
+        linear-gradient(rgba(255,255,255,.025), rgba(255,255,255,0)),
+        #0f1721;
+      box-shadow: 0 18px 70px rgba(0, 0, 0, .45);
       overflow: hidden;
     }
 
-    header {
+    .map-placeholder {
+      position: absolute;
+      inset: 0 344px 0 0;
+      background:
+        radial-gradient(circle at 25% 28%, rgba(99,199,255,.18) 0 2px, transparent 3px),
+        radial-gradient(circle at 65% 62%, rgba(245,176,65,.18) 0 3px, transparent 4px),
+        linear-gradient(145deg, #101b28, #0c121b);
+    }
+
+    .native-panel {
+      position: absolute;
+      top: 18px;
+      right: 18px;
+      width: 326px;
+      max-height: 584px;
+      display: flex;
+      flex-direction: column;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(26, 38, 53, .97);
+      box-shadow: 0 10px 36px rgba(0, 0, 0, .4);
+      overflow: hidden;
+    }
+
+    .titlebar {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 20px;
-      padding: 18px 22px;
-      background: linear-gradient(90deg, #1d3146, #172536);
+      gap: 10px;
+      padding: 10px 12px;
+      background: linear-gradient(90deg, #21344a, #182638);
       border-bottom: 1px solid var(--line);
     }
 
     h1 {
       margin: 0;
-      font-size: 20px;
-      letter-spacing: 0.02em;
+      font-size: 15px;
+      font-weight: 650;
+      letter-spacing: .02em;
+    }
+
+    .close {
+      width: 22px;
+      height: 22px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      color: var(--muted);
+      display: grid;
+      place-items: center;
+      background: #172334;
     }
 
     .summary {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      color: var(--muted);
-    }
-
-    .pill {
-      display: inline-flex;
-      align-items: center;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
       gap: 6px;
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      padding: 4px 10px;
-      background: rgba(255, 255, 255, 0.04);
-      white-space: nowrap;
-    }
-
-    .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--accent);
-    }
-
-    .dot.good { background: var(--good); }
-    .dot.warn { background: var(--warn); }
-    .dot.danger { background: var(--danger); }
-
-    .toolbar {
-      display: flex;
-      justify-content: space-between;
-      gap: 16px;
-      padding: 14px 22px;
+      padding: 9px 10px;
       border-bottom: 1px solid var(--line);
-      background: rgba(16, 23, 34, 0.45);
+      background: rgba(12, 18, 27, .35);
     }
 
-    .filters,
-    .actions {
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 6px;
+      text-align: center;
+      background: rgba(255, 255, 255, .035);
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 15px;
+      line-height: 1;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+
+    .filters {
       display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
+      gap: 5px;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--line);
+      overflow: hidden;
     }
 
     button {
+      flex: 1 1 auto;
+      min-width: 0;
       color: var(--text);
       background: var(--panel-2);
       border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 7px 11px;
+      border-radius: 5px;
+      padding: 5px 6px;
       font: inherit;
+      font-size: 11px;
+      white-space: nowrap;
     }
 
-    button.primary {
+    button.active {
       border-color: #3c91bd;
       background: #164c70;
     }
 
-    main { padding: 18px 22px 22px; }
-
-    .grid {
+    .list {
+      padding: 10px;
       display: grid;
-      grid-template-columns: 1.3fr 1fr 0.8fr 1fr 1fr 0.7fr;
-      gap: 1px;
-      background: var(--line);
+      gap: 9px;
+      overflow-y: auto;
+    }
+
+    .card {
       border: 1px solid var(--line);
-      border-radius: 10px;
+      border-radius: 7px;
+      background: var(--panel-3);
       overflow: hidden;
     }
 
-    .cell {
-      background: var(--panel);
-      padding: 12px;
-      min-height: 56px;
-    }
-
-    .head {
-      min-height: unset;
-      color: var(--muted);
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      background: #142032;
-      padding-top: 9px;
-      padding-bottom: 9px;
+    .card-head {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: start;
+      padding: 8px 9px;
+      background: rgba(255, 255, 255, .035);
+      border-bottom: 1px solid rgba(52, 75, 99, .65);
     }
 
     .route {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      font-weight: 650;
+      font-weight: 700;
+      font-size: 13px;
     }
 
     .sub {
       color: var(--muted);
-      font-size: 12px;
-      font-weight: 400;
+      font-size: 11px;
+      margin-top: 2px;
     }
 
-    .status {
+    .badge {
       display: inline-flex;
       align-items: center;
-      gap: 7px;
+      gap: 5px;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 999px;
+      padding: 3px 7px;
+      font-size: 10px;
       font-weight: 650;
+      white-space: nowrap;
+      background: rgba(255,255,255,.05);
+    }
+
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    .good { background: var(--good); }
+    .warn { background: var(--warn); }
+    .danger { background: var(--danger); }
+
+    .card-body {
+      padding: 8px 9px 9px;
+      display: grid;
+      gap: 7px;
+    }
+
+    .craft-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .cargo-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
     }
 
     .cargo {
+      border: 1px solid rgba(52, 75, 99, .75);
+      border-radius: 5px;
+      padding: 6px;
+      background: rgba(255,255,255,.025);
+      min-height: 48px;
+    }
+
+    .cargo label {
+      display: block;
+      color: var(--accent);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      margin-bottom: 3px;
+    }
+
+    .cycle {
       display: grid;
-      gap: 4px;
+      grid-template-columns: auto 1fr;
+      gap: 8px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 11px;
     }
 
     .progress {
-      height: 7px;
-      margin-top: 8px;
+      height: 6px;
       border-radius: 999px;
-      background: #0e1520;
+      background: #0b111a;
       overflow: hidden;
     }
 
     .bar {
       height: 100%;
+      border-radius: inherit;
       background: linear-gradient(90deg, var(--accent), var(--good));
     }
 
-    @media (max-width: 900px) {
-      .grid { grid-template-columns: 1fr; }
-      .head { display: none; }
-      .cell { min-height: auto; }
-      .cell::before {
-        content: attr(data-label);
-        display: block;
-        margin-bottom: 5px;
-        color: var(--muted);
-        font-size: 11px;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-      }
+    .native-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      padding-top: 2px;
+    }
+
+    .native-actions button {
+      font-size: 11px;
+      padding: 5px 6px;
     }
   </style>
 </head>
 <body>
-  <section class="window" aria-label="Cyclical missions overview mockup">
-    <header>
-      <div>
-        <h1>Cyclical Missions</h1>
-        <div class="sub">FleetTracker read-only overview concept</div>
-      </div>
-      <div class="summary">
-        <span class="pill"><span class="dot good"></span> 4 active</span>
-        <span class="pill"><span class="dot warn"></span> 1 paused</span>
-        <span class="pill"><span class="dot danger"></span> 1 ending</span>
-      </div>
-    </header>
+  <main class="game-frame" aria-label="Game screen mockup">
+    <div class="map-placeholder" aria-hidden="true"></div>
 
-    <nav class="toolbar" aria-label="Filters and actions">
-      <div class="filters">
-        <button class="primary">All routes</button>
+    <section class="native-panel" aria-label="Native cyclical mission side panel concept">
+      <div class="titlebar">
+        <h1>Cyclical Missions</h1>
+        <div class="close">×</div>
+      </div>
+
+      <div class="summary" aria-label="Mission summary">
+        <div class="metric"><strong>6</strong><span>Routes</span></div>
+        <div class="metric"><strong>4</strong><span>Active</span></div>
+        <div class="metric"><strong>2</strong><span>Need care</span></div>
+      </div>
+
+      <nav class="filters" aria-label="Compact filters">
+        <button class="active">All</button>
         <button>Active</button>
         <button>Paused</button>
         <button>Ending</button>
+      </nav>
+
+      <div class="list">
+        <article class="card">
+          <div class="card-head">
+            <div>
+              <div class="route">Earth ↔ Mars</div>
+              <div class="sub">Hohmann transfer · 8 / ∞ cycles</div>
+            </div>
+            <span class="badge"><span class="dot good"></span>Active</span>
+          </div>
+          <div class="card-body">
+            <div class="craft-row"><span>Hermes, Daedalus</span><span>2 craft</span></div>
+            <div class="cargo-grid">
+              <div class="cargo"><label>A → B</label>Crew 12<br>Supplies 18 t</div>
+              <div class="cargo"><label>B → A</label>Science 6 t<br>Free 22 t</div>
+            </div>
+            <div class="cycle"><span>Cycle progress</span><div class="progress"><div class="bar" style="width: 80%"></div></div></div>
+            <div class="native-actions"><button>Details</button><button>Edit native</button></div>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div>
+              <div class="route">Moon ↔ LEO</div>
+              <div class="sub">Fast cargo · 3 / 10 cycles</div>
+            </div>
+            <span class="badge"><span class="dot warn"></span>Paused</span>
+          </div>
+          <div class="card-body">
+            <div class="craft-row"><span>Mule-3</span><span>1 craft</span></div>
+            <div class="cargo-grid">
+              <div class="cargo"><label>A → B</label>Ore 40 t</div>
+              <div class="cargo"><label>B → A</label>Equipment 8 t</div>
+            </div>
+            <div class="cycle"><span>Cycle progress</span><div class="progress"><div class="bar" style="width: 30%"></div></div></div>
+            <div class="native-actions"><button>Resume</button><button>Edit native</button></div>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div>
+              <div class="route">Ceres ↔ Mars</div>
+              <div class="sub">Economical · 9 / 10 cycles</div>
+            </div>
+            <span class="badge"><span class="dot danger"></span>Ending</span>
+          </div>
+          <div class="card-body">
+            <div class="craft-row"><span>Prospector II</span><span>1 craft</span></div>
+            <div class="cargo-grid">
+              <div class="cargo"><label>A → B</label>Water 25 t</div>
+              <div class="cargo"><label>B → A</label>Machinery 4 t</div>
+            </div>
+            <div class="cycle"><span>Cycle progress</span><div class="progress"><div class="bar" style="width: 90%"></div></div></div>
+            <div class="native-actions"><button>Details</button><button>Edit native</button></div>
+          </div>
+        </article>
       </div>
-      <div class="actions">
-        <button>Sort by route</button>
-        <button>Refresh</button>
-      </div>
-    </nav>
-
-    <main>
-      <div class="grid" role="table" aria-label="Cyclical mission routes">
-        <div class="cell head">Route</div>
-        <div class="cell head">Spacecraft</div>
-        <div class="cell head">Status</div>
-        <div class="cell head">Cargo A → B</div>
-        <div class="cell head">Cargo B → A</div>
-        <div class="cell head">Cycles</div>
-
-        <div class="cell" data-label="Route">
-          <div class="route">Earth ↔ Mars <span class="sub">Transfer: Hohmann</span></div>
-        </div>
-        <div class="cell" data-label="Spacecraft">Hermes, Daedalus <div class="sub">2 craft assigned</div></div>
-        <div class="cell" data-label="Status"><span class="status"><span class="dot good"></span>Active</span></div>
-        <div class="cell cargo" data-label="Cargo A → B">Crew: 12 <span class="sub">Supplies: 18 t</span></div>
-        <div class="cell cargo" data-label="Cargo B → A">Science: 6 t <span class="sub">Empty capacity: 22 t</span></div>
-        <div class="cell" data-label="Cycles">8 / ∞ <div class="progress"><div class="bar" style="width: 80%"></div></div></div>
-
-        <div class="cell" data-label="Route">
-          <div class="route">Moon ↔ LEO <span class="sub">Transfer: Fast cargo</span></div>
-        </div>
-        <div class="cell" data-label="Spacecraft">Mule-3 <div class="sub">1 craft assigned</div></div>
-        <div class="cell" data-label="Status"><span class="status"><span class="dot warn"></span>Paused</span></div>
-        <div class="cell cargo" data-label="Cargo A → B">Ore: 40 t</div>
-        <div class="cell cargo" data-label="Cargo B → A">Equipment: 8 t</div>
-        <div class="cell" data-label="Cycles">3 / 10 <div class="progress"><div class="bar" style="width: 30%"></div></div></div>
-
-        <div class="cell" data-label="Route">
-          <div class="route">Ceres ↔ Mars <span class="sub">Transfer: Economical</span></div>
-        </div>
-        <div class="cell" data-label="Spacecraft">Prospector II <div class="sub">1 craft assigned</div></div>
-        <div class="cell" data-label="Status"><span class="status"><span class="dot danger"></span>Ending</span></div>
-        <div class="cell cargo" data-label="Cargo A → B">Water: 25 t</div>
-        <div class="cell cargo" data-label="Cargo B → A">Machinery: 4 t</div>
-        <div class="cell" data-label="Cycles">9 / 10 <div class="progress"><div class="bar" style="width: 90%"></div></div></div>
-      </div>
-    </main>
-  </section>
+    </section>
+  </main>
 </body>
 </html>

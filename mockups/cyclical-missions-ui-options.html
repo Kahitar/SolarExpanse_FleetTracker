@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cyclical Mission UI Options</title>
+  <style>
+    :root {
+      --bg: #101722;
+      --panel: #182331;
+      --panel-2: #213247;
+      --text: #e8f0ff;
+      --muted: #9aacbf;
+      --line: #344b63;
+      --accent: #63c7ff;
+      --good: #58d68d;
+      --warn: #f5b041;
+      --danger: #ff6b6b;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at top, #24364a 0, var(--bg) 46rem);
+      color: var(--text);
+      font: 15px/1.45 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      padding: 28px;
+    }
+
+    main {
+      max-width: 1120px;
+      margin: 0 auto;
+      display: grid;
+      gap: 18px;
+    }
+
+    header,
+    section {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(24, 35, 49, .96);
+      box-shadow: 0 12px 42px rgba(0, 0, 0, .28);
+    }
+
+    header {
+      padding: 22px;
+      background: linear-gradient(90deg, #21344a, #172536);
+    }
+
+    h1,
+    h2,
+    h3,
+    p { margin-top: 0; }
+
+    h1 { margin-bottom: 6px; font-size: 24px; }
+    h2 { margin-bottom: 12px; font-size: 18px; }
+    h3 { margin-bottom: 8px; font-size: 15px; }
+    p { color: var(--muted); }
+
+    .note {
+      color: var(--text);
+      border-left: 4px solid var(--accent);
+      padding: 10px 12px;
+      background: rgba(99, 199, 255, .08);
+      border-radius: 8px;
+      margin-top: 14px;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      padding: 16px;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255,255,255,.035);
+      overflow: hidden;
+    }
+
+    .card-title {
+      padding: 13px 14px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel-2);
+    }
+
+    .badge {
+      display: inline-flex;
+      margin-top: 7px;
+      border-radius: 999px;
+      padding: 3px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      background: rgba(99, 199, 255, .16);
+      color: var(--accent);
+    }
+
+    .content { padding: 14px; }
+
+    ul { margin: 0; padding-left: 18px; color: var(--muted); }
+    li + li { margin-top: 6px; }
+
+    .pros { color: var(--good); }
+    .risks { color: var(--warn); }
+
+    .flow {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr auto 1fr;
+      gap: 10px;
+      align-items: center;
+      padding: 16px;
+    }
+
+    .step {
+      min-height: 96px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255,255,255,.035);
+      padding: 14px;
+    }
+
+    .arrow {
+      color: var(--accent);
+      font-size: 28px;
+      font-weight: 300;
+    }
+
+    .recommendation {
+      padding: 16px;
+      display: grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: 16px;
+    }
+
+    .panel-sketch {
+      width: 326px;
+      max-width: 100%;
+      justify-self: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #1a2635;
+      overflow: hidden;
+      font-size: 12px;
+    }
+
+    .sketch-title,
+    .sketch-row { padding: 9px 10px; border-bottom: 1px solid var(--line); }
+    .sketch-title { background: #21344a; font-weight: 700; }
+    .sketch-row { display: grid; gap: 5px; }
+    .sketch-status { color: var(--good); font-size: 11px; }
+    .sketch-muted { color: var(--muted); font-size: 11px; }
+
+    @media (max-width: 900px) {
+      .cards,
+      .flow,
+      .recommendation { grid-template-columns: 1fr; }
+      .arrow { transform: rotate(90deg); justify-self: center; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Cyclical Mission UI Options</h1>
+      <p>Visual summary for improving the game's native cyclical mission overview side panel.</p>
+      <div class="note">Primary target: adapt the existing native cyclical mission panel. A separate FleetTracker panel is only a fallback if the native UI is too brittle.</div>
+    </header>
+
+    <section>
+      <div class="cards">
+        <article class="card">
+          <div class="card-title">
+            <h2>1. Patch native rows</h2>
+            <span class="badge">Preferred if stable</span>
+          </div>
+          <div class="content">
+            <h3>What changes</h3>
+            <ul>
+              <li>Keep the native side panel and entry point.</li>
+              <li>Reformat each mission into compact route cards.</li>
+              <li>Preserve native edit/cancel actions if safe.</li>
+            </ul>
+            <h3 class="pros">Pros</h3>
+            <ul><li>Directly improves the original game overview.</li><li>Best player workflow fit.</li></ul>
+            <h3 class="risks">Risks</h3>
+            <ul><li>Depends on private UI methods and row hierarchy.</li><li>More fragile across game updates.</li></ul>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-title">
+            <h2>2. Replace panel content</h2>
+            <span class="badge">Best fallback</span>
+          </div>
+          <div class="content">
+            <h3>What changes</h3>
+            <ul>
+              <li>Keep the native panel shell.</li>
+              <li>Hide original content container.</li>
+              <li>Inject a custom scroll view sized to the side panel.</li>
+            </ul>
+            <h3 class="pros">Pros</h3>
+            <ul><li>Still feels native.</li><li>More control than editing old rows.</li></ul>
+            <h3 class="risks">Risks</h3>
+            <ul><li>Edit controls may need later reintegration.</li><li>Needs reliable cleanup on reopen.</li></ul>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-title">
+            <h2>3. Separate FleetTracker panel</h2>
+            <span class="badge">Safety fallback</span>
+          </div>
+          <div class="content">
+            <h3>What changes</h3>
+            <ul>
+              <li>Add a new FleetTracker dashboard.</li>
+              <li>Leave the original game panel untouched.</li>
+              <li>Use a wider layout if needed.</li>
+            </ul>
+            <h3 class="pros">Pros</h3>
+            <ul><li>Lowest risk to game UI.</li><li>Maximum layout freedom.</li></ul>
+            <h3 class="risks">Risks</h3>
+            <ul><li>Does not directly fix the native overview.</li><li>Duplicates mission information.</li></ul>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <div class="flow">
+        <div class="step"><h3>First</h3><p>Inspect game metadata and runtime hierarchy for the native cyclical mission panel, row prefab, and rebuild methods.</p></div>
+        <div class="arrow">→</div>
+        <div class="step"><h3>Then</h3><p>Prototype compact side-panel route cards as a read-only view, preserving native edit actions only when safe.</p></div>
+        <div class="arrow">→</div>
+        <div class="step"><h3>Fallback</h3><p>If native rows are brittle, replace the native panel content area. Use a separate FleetTracker panel only as last resort.</p></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="recommendation">
+        <div>
+          <h2>Recommended direction</h2>
+          <p>Target the native side panel first. The improved layout should fit within the game's existing narrow panel, using stacked route cards rather than a wide table.</p>
+          <ul>
+            <li>One route per card: <strong>A ↔ B</strong>.</li>
+            <li>Compact status badge: Active, Paused, Ending, Done.</li>
+            <li>Craft line: names plus count.</li>
+            <li>Two cargo lanes: A→B and B→A.</li>
+            <li>Cycle count/progress when available.</li>
+          </ul>
+        </div>
+        <aside class="panel-sketch" aria-label="Side panel layout sketch">
+          <div class="sketch-title">Cyclical Missions</div>
+          <div class="sketch-row"><strong>Earth ↔ Mars</strong><span class="sketch-status">Active · 8 / ∞</span><span class="sketch-muted">Hermes, Daedalus · Crew 12 / Science 6t</span></div>
+          <div class="sketch-row"><strong>Moon ↔ LEO</strong><span class="sketch-status" style="color: var(--warn)">Paused · 3 / 10</span><span class="sketch-muted">Mule-3 · Ore 40t / Equipment 8t</span></div>
+          <div class="sketch-row"><strong>Ceres ↔ Mars</strong><span class="sketch-status" style="color: var(--danger)">Ending · 9 / 10</span><span class="sketch-muted">Prospector II · Water 25t / Machinery 4t</span></div>
+        </aside>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
