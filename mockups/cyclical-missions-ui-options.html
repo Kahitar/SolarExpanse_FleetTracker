@@ -136,6 +136,27 @@
       gap: 16px;
     }
 
+    .feasibility {
+      padding: 16px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .answer {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255,255,255,.035);
+      padding: 14px;
+    }
+
+    .answer strong { color: var(--good); }
+    .answer.warning strong { color: var(--warn); }
+
+    table { width: 100%; border-collapse: collapse; color: var(--muted); font-size: 13px; }
+    th, td { border-top: 1px solid var(--line); padding: 8px; text-align: left; vertical-align: top; }
+    th { color: var(--text); }
+
     .panel-sketch {
       width: 326px;
       max-width: 100%;
@@ -157,6 +178,7 @@
     @media (max-width: 900px) {
       .cards,
       .flow,
+      .feasibility,
       .recommendation { grid-template-columns: 1fr; }
       .arrow { transform: rotate(90deg); justify-self: center; }
     }
@@ -238,6 +260,31 @@
         <div class="step"><h3>Then</h3><p>Prototype compact side-panel route cards as a read-only view, preserving native edit actions only when safe.</p></div>
         <div class="arrow">→</div>
         <div class="step"><h3>Fallback</h3><p>If native rows are brittle, replace the native panel content area. Use a separate FleetTracker panel only as last resort.</p></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="feasibility">
+        <div class="answer">
+          <h2>Is the mockup technically possible?</h2>
+          <p><strong>Yes.</strong> FleetTracker already creates custom Unity UI at runtime using the same building blocks this mockup needs: cloned panel styling, RectTransforms, scroll views, layout groups, buttons, TextMeshPro labels, and reflection-safe data reads.</p>
+          <p>The likely reliable implementation is to render this custom card list inside the native cyclical mission panel bounds.</p>
+        </div>
+        <div class="answer warning">
+          <h2>Is option 1 proven?</h2>
+          <p><strong>Not yet.</strong> Patching native rows in place is possible in principle with Harmony, but it depends on finding a stable native row rebuild method, prefab, or transform hierarchy.</p>
+          <p>If the native rows are brittle, replacing the native panel content is the safer route to the same visual result.</p>
+        </div>
+        <div class="answer" style="grid-column: 1 / -1;">
+          <h2>Confidence</h2>
+          <table>
+            <tr><th>Item</th><th>Confidence</th><th>Reason</th></tr>
+            <tr><td>Mockup layout as Unity UI</td><td>High</td><td>Matches UI primitives FleetTracker already uses.</td></tr>
+            <tr><td>Mockup inside native panel bounds</td><td>Medium-high</td><td>Requires reliable native panel/container discovery.</td></tr>
+            <tr><td>Patch native rows in place</td><td>Medium</td><td>Needs metadata/runtime inspection of native cyclical mission UI.</td></tr>
+            <tr><td>Preserve native edit/cancel actions</td><td>Medium-low</td><td>Should wait until native validation methods are identified.</td></tr>
+          </table>
+        </div>
       </div>
     </section>
 

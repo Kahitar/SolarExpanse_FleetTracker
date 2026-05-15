@@ -26,6 +26,24 @@ The current native cyclical missions overview is hard to scan. FleetTracker can 
   - `PMMissionParameter.CycleMissionsDataData`
   - cyclical mission fields seen in saves: `scIDList`, `A`, `B`, `Pause`, `Ends`, `TransferType`, `CargoStart`, `CargoEnd`, `CountMission`, `CountMax`
 
+## Technical feasibility answer
+
+Short answer: yes, the mockup is technically possible, but the safest implementation path is probably not a pure rewrite of existing native rows on the first attempt.
+
+- The side-panel-sized mockup is feasible because FleetTracker already creates custom Unity UI at runtime: cloned game panel background, `RectTransform` sizing, scroll view, `VerticalLayoutGroup`, `ContentSizeFitter`, buttons, TextMeshPro labels, and reflection-safe data reads.
+- Building that layout inside the native cyclical mission panel should be possible if we can reliably locate the panel/content container when the native tab opens.
+- Option 1, patching native rows in place, is technically possible in principle with Harmony, but only confirmed after inspecting the exact native UI classes/methods. It depends on whether the game exposes a stable row rebuild method, row prefab, or predictable transform hierarchy.
+- If the native rows are not stable, Option 2 is the more reliable way to achieve the same visual result: keep the native panel shell and replace only its content area with our own side-panel-sized scroll list.
+
+Practical confidence:
+
+| Item | Feasibility | Confidence | Notes |
+| --- | --- | --- | --- |
+| Mockup layout as Unity UI | Technically feasible | High | Existing FleetTracker UI code already uses the required Unity UI primitives. |
+| Same layout inside native panel bounds | Technically feasible | Medium-high | Needs reliable panel/container discovery. |
+| Patch native rows in place | Possible, not yet proven | Medium | Needs metadata/runtime inspection of the native cyclical mission UI. |
+| Preserve native edit/cancel actions | Possible, not yet proven | Medium-low | Should not be done until native validation methods are identified. |
+
 ## Option 1: Patch the existing native side panel in place
 
 Patch the game's cyclical mission side panel/tab and change its generated rows in place.
@@ -56,7 +74,7 @@ Cons / risks:
 
 Best use:
 
-- Preferred path if inspection finds a stable row-building method or stable transform hierarchy for the cyclical mission panel.
+- Preferred path if inspection finds a stable row-building method or stable transform hierarchy for the cyclical mission panel. If those targets are not stable, use Option 2 to preserve the native panel shell while controlling the content.
 
 ## Option 2: Replace the native panel content at runtime
 
@@ -119,7 +137,7 @@ Best use:
 Proceed in this order:
 
 1. Try to adapt the native cyclical mission side panel in place.
-2. If original rows are too brittle, replace the native panel's content area while keeping the native shell/entry point.
+2. If original rows are too brittle, replace the native panel's content area while keeping the native shell/entry point. This is the most likely path to reproduce the HTML mockup reliably.
 3. Only build a separate FleetTracker overview if native-panel modification is unsafe or disproportionately expensive.
 
 ## Recommended next discovery step
