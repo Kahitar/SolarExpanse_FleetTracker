@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FleetTracker Cyclical Mission Tab Mockups</title>
+  <style>
+    :root {
+      --space: #0b1018;
+      --frame: #111a26;
+      --panel: #172434;
+      --panel-2: #203249;
+      --panel-3: #101925;
+      --line: #35506c;
+      --line-soft: rgba(99, 199, 255, .18);
+      --text: #edf5ff;
+      --muted: #9dafc4;
+      --dim: #71839a;
+      --blue: #63c7ff;
+      --green: #58d68d;
+      --yellow: #f5b041;
+      --red: #ff6b6b;
+      --violet: #a78bfa;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 22% 8%, rgba(99,199,255,.18), transparent 32rem),
+        radial-gradient(circle at 78% 28%, rgba(167,139,250,.14), transparent 28rem),
+        var(--space);
+      font: 13px/1.38 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      padding: 24px;
+    }
+
+    main {
+      max-width: 1220px;
+      margin: 0 auto;
+      display: grid;
+      gap: 22px;
+    }
+
+    header,
+    .option {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(17, 26, 38, .96);
+      box-shadow: 0 18px 58px rgba(0, 0, 0, .36);
+      overflow: hidden;
+    }
+
+    header { padding: 22px 24px; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { margin-bottom: 8px; font-size: 25px; }
+    h2 { margin: 0; font-size: 20px; }
+    h3 { margin-bottom: 8px; font-size: 14px; color: var(--blue); }
+    p { color: var(--muted); }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .summary article,
+    .notes,
+    .pros-cons {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(255,255,255,.035);
+      padding: 12px;
+    }
+
+    .summary strong { display: block; margin-bottom: 5px; }
+    .summary span { color: var(--muted); }
+
+    .option-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 18px;
+      background: linear-gradient(90deg, #21344a, #172638);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .tag {
+      border: 1px solid var(--line-soft);
+      border-radius: 999px;
+      padding: 5px 10px;
+      color: var(--blue);
+      background: rgba(99,199,255,.1);
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .option-grid {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 16px;
+      padding: 16px;
+      align-items: start;
+    }
+
+    .mockup {
+      min-height: 470px;
+      border: 1px solid #26384c;
+      border-radius: 10px;
+      position: relative;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 16% 24%, rgba(99,199,255,.16) 0 2px, transparent 3px),
+        radial-gradient(circle at 48% 70%, rgba(245,176,65,.18) 0 3px, transparent 4px),
+        radial-gradient(circle at 72% 34%, rgba(88,214,141,.13) 0 2px, transparent 3px),
+        linear-gradient(145deg, #101b28, #0c121b);
+    }
+
+    .fleet-window {
+      position: absolute;
+      inset: 22px;
+      display: flex;
+      flex-direction: column;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: rgba(23, 36, 52, .98);
+      overflow: hidden;
+      box-shadow: 0 12px 38px rgba(0,0,0,.42);
+    }
+
+    .titlebar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 12px;
+      background: linear-gradient(90deg, #203249, #162335);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .titlebar strong { letter-spacing: .02em; }
+    .window-actions { color: var(--dim); display: flex; gap: 8px; }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+      padding: 8px 10px 0;
+      background: rgba(12,18,27,.42);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .tab {
+      padding: 7px 11px;
+      border: 1px solid transparent;
+      border-bottom: 0;
+      border-radius: 7px 7px 0 0;
+      color: var(--muted);
+      background: rgba(255,255,255,.025);
+    }
+
+    .tab.active {
+      color: var(--text);
+      background: var(--panel);
+      border-color: var(--line);
+      box-shadow: inset 0 2px 0 var(--blue);
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 9px 10px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel-3);
+    }
+
+    .filters { display: flex; gap: 6px; flex-wrap: wrap; }
+    .pill, .btn {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px 8px;
+      color: var(--muted);
+      background: rgba(255,255,255,.035);
+    }
+    .pill.active { color: var(--blue); border-color: rgba(99,199,255,.55); }
+    .btn { color: var(--text); border-radius: 6px; }
+
+    .content { flex: 1; min-height: 0; padding: 10px; }
+    .split { display: grid; grid-template-columns: 1fr 230px; gap: 10px; height: 100%; }
+    .stack { display: grid; gap: 8px; align-content: start; }
+
+    .route-card,
+    .matrix-row,
+    .timeline-card,
+    .detail-card,
+    .metric-box {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255,255,255,.04);
+      padding: 9px;
+    }
+
+    .route-top,
+    .matrix-top,
+    .timeline-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .status { color: var(--green); font-weight: 700; }
+    .paused { color: var(--yellow); }
+    .ending { color: var(--red); }
+    .small { color: var(--muted); font-size: 12px; }
+    .tiny { color: var(--dim); font-size: 11px; }
+
+    .lanes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 7px; }
+    .lane {
+      border: 1px solid rgba(53,80,108,.75);
+      border-radius: 6px;
+      padding: 6px;
+      background: rgba(12,18,27,.35);
+    }
+
+    .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin-bottom: 8px; }
+    .metric-box strong { display: block; font-size: 16px; }
+    .matrix-row { display: grid; grid-template-columns: 1.05fr .9fr .9fr .55fr; gap: 8px; align-items: center; }
+    .head { color: var(--dim); text-transform: uppercase; letter-spacing: .05em; font-size: 10px; }
+
+    .timeline { position: relative; padding-left: 18px; }
+    .timeline::before {
+      content: "";
+      position: absolute;
+      left: 7px;
+      top: 4px;
+      bottom: 4px;
+      width: 2px;
+      background: rgba(99,199,255,.28);
+    }
+    .timeline-card { position: relative; }
+    .timeline-card::before {
+      content: "";
+      position: absolute;
+      left: -15px;
+      top: 14px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--blue);
+      box-shadow: 0 0 0 3px rgba(99,199,255,.14);
+    }
+
+    .detail-card h3 { color: var(--text); }
+    ul { margin: 0; padding-left: 18px; color: var(--muted); }
+    li + li { margin-top: 5px; }
+    .pros { color: var(--green); }
+    .cons { color: var(--yellow); }
+
+    @media (max-width: 980px) {
+      body { padding: 14px; }
+      .summary,
+      .option-grid,
+      .split,
+      .metrics { grid-template-columns: 1fr; }
+      .mockup { min-height: 640px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Separate Cyclical Mission UI: three FleetTracker tab options</h1>
+      <p>All three concepts keep Cyclical missions as their own tab inside the existing FleetTracker panel rather than mixing them into transit/planned mission rows. Mock data is representative of the fields available from cyclical mission objects.</p>
+      <div class="summary">
+        <article><strong>Option 1: Mission Cards</strong><span>Best default: stacked route cards optimized for the current FleetTracker style.</span></article>
+        <article><strong>Option 2: Operations Matrix</strong><span>Best for comparing many routes quickly with compact columns and filters.</span></article>
+        <article><strong>Option 3: Schedule Timeline</strong><span>Best for understanding what happens next and spotting operational problems.</span></article>
+      </div>
+    </header>
+
+    <section class="option">
+      <div class="option-head"><h2>Option 1 — Mission Cards Tab</h2><span class="tag">Recommended first implementation</span></div>
+      <div class="option-grid">
+        <div class="mockup" aria-label="Mission Cards FleetTracker mockup">
+          <div class="fleet-window">
+            <div class="titlebar"><strong>FleetTracker</strong><span class="window-actions">□  ×</span></div>
+            <div class="tabs"><span class="tab">Fleets</span><span class="tab">Transit</span><span class="tab">Planned</span><span class="tab active">Cyclical</span><span class="tab">Construction</span></div>
+            <div class="toolbar"><div class="filters"><span class="pill active">All 12</span><span class="pill">Active 8</span><span class="pill">Paused 3</span><span class="pill">Ending 1</span></div><span class="btn">Refresh</span></div>
+            <div class="content split">
+              <div class="stack">
+                <article class="route-card">
+                  <div class="route-top"><strong>Earth ↔ Mars</strong><span class="status">Active · 8 / ∞</span></div>
+                  <div class="small">Hermes, Daedalus, Mule-7 · Hohmann transfer</div>
+                  <div class="lanes"><div class="lane"><strong>A→B</strong><br><span class="small">Crew 12 · Food 8t · Science 6t</span></div><div class="lane"><strong>B→A</strong><br><span class="small">Ore 28t · Samples 2t</span></div></div>
+                </article>
+                <article class="route-card">
+                  <div class="route-top"><strong>Moon ↔ LEO Depot</strong><span class="status paused">Paused · 3 / 10</span></div>
+                  <div class="small">Mule-3 · paused by player</div>
+                  <div class="lanes"><div class="lane"><strong>A→B</strong><br><span class="small">Water 40t · Regolith 18t</span></div><div class="lane"><strong>B→A</strong><br><span class="small">Equipment 8t</span></div></div>
+                </article>
+                <article class="route-card">
+                  <div class="route-top"><strong>Ceres ↔ Mars</strong><span class="status ending">Ending · 9 / 10</span></div>
+                  <div class="small">Prospector II, Tug-4 · final cycle soon</div>
+                  <div class="lanes"><div class="lane"><strong>A→B</strong><br><span class="small">Water 25t · Nickel 10t</span></div><div class="lane"><strong>B→A</strong><br><span class="small">Machinery 4t · Fuel 6t</span></div></div>
+                </article>
+              </div>
+              <aside class="detail-card">
+                <h3>Selected: Earth ↔ Mars</h3>
+                <p class="small">Shows full cargo, craft, status, and native edit/delete/pause buttons when those actions are safe to preserve.</p>
+                <div class="stack"><span class="btn">Open native mission</span><span class="btn">Pause route</span><span class="btn">Edit cycle</span></div>
+              </aside>
+            </div>
+          </div>
+        </div>
+        <aside class="pros-cons">
+          <h3 class="pros">Pros</h3>
+          <ul><li>Most readable at FleetTracker panel size.</li><li>Matches the existing grouped-row FleetTracker pattern.</li><li>Easy to make read-only first, then add safe native actions.</li></ul>
+          <h3 class="cons">Cons</h3>
+          <ul><li>Less dense than a table when many routes exist.</li><li>Requires scrolling for large empires.</li><li>Side detail area may need to collapse on small resolutions.</li></ul>
+        </aside>
+      </div>
+    </section>
+
+    <section class="option">
+      <div class="option-head"><h2>Option 2 — Operations Matrix Tab</h2><span class="tag">Highest density</span></div>
+      <div class="option-grid">
+        <div class="mockup" aria-label="Operations Matrix FleetTracker mockup">
+          <div class="fleet-window">
+            <div class="titlebar"><strong>FleetTracker</strong><span class="window-actions">□  ×</span></div>
+            <div class="tabs"><span class="tab">Fleets</span><span class="tab">Transit</span><span class="tab">Planned</span><span class="tab active">Cyclical</span><span class="tab">Construction</span></div>
+            <div class="toolbar"><div class="filters"><span class="pill active">Routes</span><span class="pill">By origin</span><span class="pill">Warnings</span><span class="pill">Cargo</span></div><span class="btn">Sort: status</span></div>
+            <div class="content">
+              <div class="metrics"><div class="metric-box"><strong>12</strong><span class="tiny">routes</span></div><div class="metric-box"><strong>21</strong><span class="tiny">ships</span></div><div class="metric-box"><strong>3</strong><span class="tiny">paused</span></div><div class="metric-box"><strong>1</strong><span class="tiny">ending</span></div></div>
+              <div class="stack">
+                <div class="matrix-row head"><span>Route</span><span>Ships / cycles</span><span>Cargo lanes</span><span>Status</span></div>
+                <div class="matrix-row"><strong>Earth ↔ Mars</strong><span class="small">3 ships · 8 / ∞</span><span class="small">Crew+Food / Ore+Samples</span><span class="status">Active</span></div>
+                <div class="matrix-row"><strong>Moon ↔ LEO</strong><span class="small">1 ship · 3 / 10</span><span class="small">Water+Regolith / Equipment</span><span class="status paused">Paused</span></div>
+                <div class="matrix-row"><strong>Ceres ↔ Mars</strong><span class="small">2 ships · 9 / 10</span><span class="small">Water+Nickel / Machinery+Fuel</span><span class="status ending">Ending</span></div>
+                <div class="matrix-row"><strong>Venus ↔ LEO</strong><span class="small">4 ships · 22 / ∞</span><span class="small">Science+Crew / Equipment</span><span class="status">Active</span></div>
+                <div class="matrix-row"><strong>Europa ↔ Jupiter</strong><span class="small">2 ships · 1 / ∞</span><span class="small">Ice / Fuel+Parts</span><span class="status">Active</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <aside class="pros-cons">
+          <h3 class="pros">Pros</h3>
+          <ul><li>Best overview when the player has many cyclical routes.</li><li>Fast comparison by status, origin, ship count, and cargo.</li><li>Natural fit for filters and sorting already used by FleetTracker.</li></ul>
+          <h3 class="cons">Cons</h3>
+          <ul><li>More cramped and less explanatory than cards.</li><li>Cargo text can become truncated or cryptic.</li><li>Harder to expose native edit/pause actions without row clutter.</li></ul>
+        </aside>
+      </div>
+    </section>
+
+    <section class="option">
+      <div class="option-head"><h2>Option 3 — Schedule Timeline Tab</h2><span class="tag">Best for next-action awareness</span></div>
+      <div class="option-grid">
+        <div class="mockup" aria-label="Schedule Timeline FleetTracker mockup">
+          <div class="fleet-window">
+            <div class="titlebar"><strong>FleetTracker</strong><span class="window-actions">□  ×</span></div>
+            <div class="tabs"><span class="tab">Fleets</span><span class="tab">Transit</span><span class="tab">Planned</span><span class="tab active">Cyclical</span><span class="tab">Construction</span></div>
+            <div class="toolbar"><div class="filters"><span class="pill active">Next events</span><span class="pill">Active</span><span class="pill">Paused</span><span class="pill">Warnings</span></div><span class="btn">Group: route</span></div>
+            <div class="content split">
+              <div class="timeline stack">
+                <article class="timeline-card"><div class="timeline-top"><strong>Sol 1842 · Hermes arrives Mars</strong><span class="status">On time</span></div><span class="small">Earth ↔ Mars · unload Crew 12, Food 8t · load Ore 28t</span></article>
+                <article class="timeline-card"><div class="timeline-top"><strong>Sol 1845 · Mule-3 waiting</strong><span class="status paused">Paused</span></div><span class="small">Moon ↔ LEO Depot · route paused before next departure</span></article>
+                <article class="timeline-card"><div class="timeline-top"><strong>Sol 1850 · Prospector II final leg</strong><span class="status ending">Final cycle</span></div><span class="small">Ceres ↔ Mars · cycle 10 / 10 will complete route</span></article>
+                <article class="timeline-card"><div class="timeline-top"><strong>Sol 1853 · Tug-4 departs Mars</strong><span class="status">Scheduled</span></div><span class="small">Ceres ↔ Mars · carrying Machinery 4t, Fuel 6t</span></article>
+              </div>
+              <aside class="detail-card">
+                <h3>Route health</h3>
+                <p class="small">Emphasizes upcoming arrivals, paused routes, and final cycles. Useful if cyclical missions are mainly monitored for exceptions.</p>
+                <div class="stack"><div class="lane"><strong>Warnings</strong><br><span class="small">1 final cycle · 3 paused routes</span></div><div class="lane"><strong>Next 30 sols</strong><br><span class="small">9 arrivals · 7 departures</span></div></div>
+              </aside>
+            </div>
+          </div>
+        </div>
+        <aside class="pros-cons">
+          <h3 class="pros">Pros</h3>
+          <ul><li>Clarifies what will happen next instead of only listing definitions.</li><li>Good for warnings: paused routes, final cycles, missing craft/cargo.</li><li>Complements planned/transit mission tabs well.</li></ul>
+          <h3 class="cons">Cons</h3>
+          <ul><li>Depends on reliable next-event timing data; may need fallback estimates.</li><li>Less direct for editing route definitions.</li><li>Can obscure the full route list if many events belong to one route.</li></ul>
+        </aside>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
