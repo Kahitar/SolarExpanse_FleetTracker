@@ -540,6 +540,10 @@ namespace SolarExpanseFleetTracker.UI
         private const string FilterAllShips = "All ships";
         private const string FilterAllCargo = "All cargo";
         private string _bodyFilter = FilterAllBodies, _shipFilter = FilterAllShips, _cargoFilter = FilterAllCargo;
+        private PanelTab _activeTab = PanelTab.Fleets;
+        private CycleStatusFilter _cycleStatusFilter = CycleStatusFilter.All;
+        private string _armedCycleDeleteKey;
+        private float _armedCycleDeleteUntil;
         private static readonly Color TextColor = new Color(0.85f, 0.85f, 0.85f);
         private static readonly Color MutedColor = new Color(0.55f, 0.55f, 0.55f);
         private static readonly Color HeaderColor = new Color(0.62f, 0.62f, 0.62f);
@@ -614,6 +618,9 @@ namespace SolarExpanseFleetTracker.UI
 
         private void Update()
         {
+            if (!string.IsNullOrEmpty(_armedCycleDeleteKey) && Time.unscaledTime > _armedCycleDeleteUntil)
+                _armedCycleDeleteKey = null;
+
             _refreshTimer += Time.deltaTime;
             if (_refreshTimer >= RefreshInterval)
             {
@@ -641,6 +648,16 @@ namespace SolarExpanseFleetTracker.UI
 
                 for (int i = ContentParent.childCount - 1; i >= 0; i--)
                     Destroy(ContentParent.GetChild(i).gameObject);
+
+                AddTabRow();
+
+                if (_activeTab == PanelTab.Cyclical)
+                {
+                    RefreshCyclicalMissionRows();
+                    UpdateIndicator(BuildSnapshot().TotalShips);
+                    LayoutRebuilder.ForceRebuildLayoutImmediate(ContentParent as RectTransform);
+                    return;
+                }
 
                 FleetSnapshot snapshot = BuildSnapshot();
                 List<string> bodyOptions = BuildBodyFilterOptions(snapshot);
@@ -755,6 +772,265 @@ namespace SolarExpanseFleetTracker.UI
 
             RecalculateTotals(snapshot);
             return snapshot;
+        }
+
+        private void RefreshCyclicalMissionRows()
+        {
+            CyclicalSnapshot snapshot = BuildCyclicalSnapshot();
+            List<string> bodyOptions = BuildCyclicalBodyFilterOptions(snapshot);
+            List<string> shipOptions = BuildCyclicalShipFilterOptions(snapshot);
+            List<string> cargoOptions = BuildCyclicalCargoFilterOptions(snapshot);
+            NormalizeFilters(bodyOptions, shipOptions, cargoOptions);
+            ApplyCyclicalFilters(snapshot);
+
+            AddTitleRow($"CYCLICAL MISSIONS  ({snapshot.Rows.Count} {Plural(snapshot.Rows.Count, "route", "routes")}, {snapshot.ActiveCount} active, {snapshot.PausedCount} paused, {snapshot.EndingCount} ending)");
+            AddCyclicalFilterRow(bodyOptions, shipOptions, cargoOptions);
+
+            if (!string.IsNullOrEmpty(snapshot.Message))
+            {
+                AddMessageRow(snapshot.Message);
+                return;
+            }
+
+            if (snapshot.Rows.Count == 0)
+            {
+                AddMessageRow("No cyclical missions match the current filters.");
+                return;
+            }
+
+            foreach (CyclicalMissionRow row in snapshot.Rows)
+                BuildCyclicalMissionRow(row);
+        }
+
+        private CyclicalSnapshot BuildCyclicalSnapshot()
+        {
+            CyclicalSnapshot snapshot = new CyclicalSnapshot();
+            Company player = MonoBehaviourSingleton<GameManager>.Instance?.Player;
+            if (player == null)
+            {
+                snapshot.Message = "Not in game yet.";
+                return snapshot;
+            }
+
+            List<object> missions = GetAllCyclicalMissionObjects(player);
+            if (missions.Count == 0)
+            {
+                snapshot.Message = "No cyclical missions found.";
+                return snapshot;
+            }
+
+            foreach (object mission in missions)
+            {
+                if (mission == null || !CyclicalMissionBelongsToPlayer(mission, player)) continue;
+
+                ObjectInfo a = ReadMemberValue(mission, "A", "a", "Start", "start") as ObjectInfo;
+                ObjectInfo b = ReadMemberValue(mission, "B", "b", "Target", "target") as ObjectInfo;
+                List<object> craftInfos = GetCyclicalCraftInfos(mission);
+                List<ShipIconCount> ships = GetCraftIconCounts(craftInfos);
+                int countSC = ToInt(ReadMemberValue(mission, "CountSC", "countSC"));
+                if (ships.Count == 0 && countSC > 0)
+                {
+                    ships.Add(new ShipIconCount
+                    {
+                        Key = "Spacecraft\u001f",
+                        DisplayName = "Spacecraft",
+                        SpriteName = "",
+                        Count = countSC
+                    });
+                }
+
+                string cargoAB = FormatCargoIcons(ReadMemberValue(mission, "cargoAllStart", "CargoAllStart", "CargoStart", "cargoStart"), out List<string> cargoABLabels);
+                string cargoBA = FormatCargoIcons(ReadMemberValue(mission, "cargoAllEnd", "CargoAllEnd", "CargoEnd", "cargoEnd"), out List<string> cargoBALabels);
+                int countMission = ToInt(ReadMemberValue(mission, "CountMission", "countMission"));
+                int countMax = ToInt(ReadMemberValue(mission, "CountMax", "countMax"));
+
+                CyclicalMissionRow row = new CyclicalMissionRow
+                {
+                    Mission = mission,
+                    A = a,
+                    B = b,
+                    AName = a?.ObjectName ?? ReadStringMember(mission, "AName", "nameA", "StartName"),
+                    BName = b?.ObjectName ?? ReadStringMember(mission, "BName", "nameB", "TargetName"),
+                    ASpriteName = a?.ImagePlanetUI?.name ?? "",
+                    BSpriteName = b?.ImagePlanetUI?.name ?? "",
+                    Ships = ships,
+                    CargoAB = cargoAB,
+                    CargoBA = cargoBA,
+                    CountMission = countMission,
+                    CountMax = countMax,
+                    Paused = ReadBoolMember(mission, "Pause", "pause", "IsPaused", "isPaused"),
+                    TransferType = FormatTransferType(ReadMemberValue(mission, "TransferType", "transferType")),
+                    Key = BuildCyclicalMissionKey(mission, a, b, countMission, countMax)
+                };
+                row.CargoLabels.AddRange(cargoABLabels);
+                foreach (string label in cargoBALabels)
+                    if (!row.CargoLabels.Any(existing => SameFilter(existing, label))) row.CargoLabels.Add(label);
+                row.Ending = row.CountMax > 0 && row.CountMission >= row.CountMax - 1;
+
+                if (string.IsNullOrEmpty(row.AName)) row.AName = "A";
+                if (string.IsNullOrEmpty(row.BName)) row.BName = "B";
+                snapshot.Rows.Add(row);
+            }
+
+            snapshot.Rows.Sort((a, b) =>
+            {
+                int status = CycleStatusRank(a).CompareTo(CycleStatusRank(b));
+                if (status != 0) return status;
+                int route = string.Compare(a.RouteText, b.RouteText, StringComparison.OrdinalIgnoreCase);
+                if (route != 0) return route;
+                return string.Compare(a.Key, b.Key, StringComparison.Ordinal);
+            });
+            RecalculateCyclicalTotals(snapshot);
+            return snapshot;
+        }
+
+        private List<object> GetAllCyclicalMissionObjects(Company player)
+        {
+            List<object> result = new List<object>();
+            foreach (object manager in FindCycleMissionManagerTargets())
+            {
+                AddCycleMissionResult(result, InvokeCompatibleMethod(manager, GetTargetType(manager),
+                    "GetAllCycleMission", new object[] { player }));
+                AddCycleMissionResult(result, InvokeCompatibleMethod(manager, GetTargetType(manager),
+                    "GetAllCycleMission", Array.Empty<object>()));
+            }
+
+            AddCycleMissionResult(result, ReadMemberValue(player, "listMissionCyclical", "ListMissionCyclical"));
+
+            var allShips = MonoBehaviourSingleton<ShipManager>.Instance?.ListAllSpaceShip;
+            if (allShips != null)
+            {
+                foreach (Spacecraft sc in allShips)
+                {
+                    if (sc == null || !IsPlayerShip(sc, player)) continue;
+                    AddSingle(result, ReadMemberValue(sc, "CycleMissionsData", "cycleMissionsData"));
+                }
+            }
+
+            return DistinctByReference(result);
+        }
+
+        private void AddCycleMissionResult(List<object> result, object value)
+        {
+            if (value != null && !(value is string) && value is IEnumerable)
+                AddEnumerable(result, value);
+            else
+                AddSingle(result, value);
+        }
+
+        private IEnumerable<object> FindCycleMissionManagerTargets()
+        {
+            Type managerType = FindGameType("Game.UI.Windows.Elements.PlanMissionElements.CycleMissionManager");
+            if (managerType == null) yield break;
+
+            yield return managerType;
+
+            foreach (string memberName in new[] { "Instance", "instance" })
+            {
+                object instance = ReadStaticMemberValue(managerType, memberName);
+                if (instance != null) yield return instance;
+            }
+
+            if (typeof(UnityEngine.Object).IsAssignableFrom(managerType))
+            {
+                UnityEngine.Object[] objects = null;
+                try { objects = Resources.FindObjectsOfTypeAll(managerType); }
+                catch { }
+                if (objects != null)
+                {
+                    foreach (UnityEngine.Object obj in objects)
+                        if (obj != null) yield return obj;
+                }
+            }
+        }
+
+        private List<object> GetCyclicalCraftInfos(object mission)
+        {
+            List<object> result = new List<object>();
+            AddEnumerable(result, ReadMemberValue(mission, "ListSC", "listSC", "SCList", "listSpacecraft", "ListSpacecraft"));
+            AddEnumerable(result, ReadMemberValue(mission, "scIDList", "SCIDList"));
+
+            foreach (object manager in FindCycleMissionManagerTargets())
+                AddCycleMissionResult(result, InvokeCompatibleMethod(manager, GetTargetType(manager), "GetSCFrom", new[] { mission }));
+
+            return DistinctByReference(result);
+        }
+
+        private bool CyclicalMissionBelongsToPlayer(object mission, Company player)
+        {
+            Company company = ReadMemberValue(mission, "company", "Company") as Company;
+            if (company != null) return company.IsPlayer || ReferenceEquals(company, player);
+
+            List<object> craftInfos = GetCyclicalCraftInfos(mission);
+            foreach (object craft in craftInfos)
+            {
+                Company craftCompany = InvokeMember(craft, "GetCompany") as Company;
+                if (craftCompany != null) return craftCompany.IsPlayer || ReferenceEquals(craftCompany, player);
+            }
+
+            return true;
+        }
+
+        private void ApplyCyclicalFilters(CyclicalSnapshot snapshot)
+        {
+            bool bodyActive = _bodyFilter != FilterAllBodies;
+            bool shipActive = _shipFilter != FilterAllShips;
+            bool cargoActive = _cargoFilter != FilterAllCargo;
+
+            snapshot.Rows.RemoveAll(row =>
+            {
+                if (_cycleStatusFilter == CycleStatusFilter.Active && (row.Paused || row.Ending)) return true;
+                if (_cycleStatusFilter == CycleStatusFilter.Paused && !row.Paused) return true;
+                if (_cycleStatusFilter == CycleStatusFilter.Ending && !row.Ending) return true;
+                if (bodyActive && !BodyMatchesFilter(row.AName, _bodyFilter) && !BodyMatchesFilter(row.BName, _bodyFilter)) return true;
+                if (shipActive && !row.Ships.Any(ship => SameFilter(ship.DisplayName, _shipFilter))) return true;
+                if (cargoActive && !row.CargoLabels.Any(label => SameFilter(label, _cargoFilter))) return true;
+                return false;
+            });
+            RecalculateCyclicalTotals(snapshot);
+        }
+
+        private static void RecalculateCyclicalTotals(CyclicalSnapshot snapshot)
+        {
+            snapshot.ActiveCount = snapshot.Rows.Count(row => !row.Paused && !row.Ending);
+            snapshot.PausedCount = snapshot.Rows.Count(row => row.Paused);
+            snapshot.EndingCount = snapshot.Rows.Count(row => row.Ending);
+        }
+
+        private static int CycleStatusRank(CyclicalMissionRow row)
+        {
+            if (row.Ending) return 0;
+            if (row.Paused) return 1;
+            return 2;
+        }
+
+        private static List<string> BuildCyclicalBodyFilterOptions(CyclicalSnapshot snapshot)
+        {
+            SortedSet<string> values = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (CyclicalMissionRow row in snapshot.Rows)
+            {
+                AddBodyOption(values, row.ASpriteName, row.AName);
+                AddBodyOption(values, row.BSpriteName, row.BName);
+            }
+            return WithAll(FilterAllBodies, values);
+        }
+
+        private static List<string> BuildCyclicalShipFilterOptions(CyclicalSnapshot snapshot)
+        {
+            SortedSet<string> values = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (CyclicalMissionRow row in snapshot.Rows)
+                foreach (ShipIconCount ship in row.Ships)
+                    AddOption(values, FormatShip(ship.SpriteName, ship.DisplayName));
+            return WithAll(FilterAllShips, values);
+        }
+
+        private static List<string> BuildCyclicalCargoFilterOptions(CyclicalSnapshot snapshot)
+        {
+            SortedSet<string> values = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (CyclicalMissionRow row in snapshot.Rows)
+                foreach (string label in row.CargoLabels)
+                    AddOption(values, label);
+            return WithAll(FilterAllCargo, values);
         }
 
         private void ApplyFilters(FleetSnapshot snapshot)
@@ -1198,6 +1474,8 @@ namespace SolarExpanseFleetTracker.UI
             AddCargoList(parts, labels, ReadMemberValue(cargoAll, "listCargoToOrbit", "listCargoDataToOrbit"));
             AddCargoList(parts, labels, ReadMemberValue(cargoAll, "listCargoGravityAssists", "listCargoGravityAssists"));
             AddCargoItem(parts, labels, ReadMemberValue(cargoAll, "cargoFuel", "CargoFuel"), fuel: true);
+            AddCargoList(parts, labels, cargoAll);
+            AddCargoItem(parts, labels, cargoAll, fuel: false);
 
             if (parts.Count == 0) return EmptyCargoText();
             return string.Join(" ", parts.Take(8));
@@ -1358,6 +1636,14 @@ namespace SolarExpanseFleetTracker.UI
             return text.Trim();
         }
 
+        private static string FilterIcon(string label)
+        {
+            if (string.Equals(label, "Body", StringComparison.OrdinalIgnoreCase)) return "<color=#55D5FF>●</color>";
+            if (string.Equals(label, "Ship", StringComparison.OrdinalIgnoreCase)) return "<color=#A8A8A8>▲</color>";
+            if (string.Equals(label, "Cargo", StringComparison.OrdinalIgnoreCase)) return "<color=#D9D16A>$</color>";
+            return "*";
+        }
+
         private static string BaseBodyName(string value)
         {
             string text = FilterText(value);
@@ -1436,6 +1722,127 @@ namespace SolarExpanseFleetTracker.UI
             AddColumn(rowGO.transform, 0f, 1f, TextAlignmentOptions.MidlineRight, row.Status, 110f).color = TextColor;
         }
 
+        private void BuildCyclicalMissionRow(CyclicalMissionRow row)
+        {
+            GameObject rowGO = MakeRowContainer($"Cycle_{row.RouteText}", 64f);
+            Image bg = rowGO.AddComponent<Image>();
+            bg.color = row.Paused
+                ? new Color(0.14f, 0.12f, 0.07f, 0.74f)
+                : row.Ending
+                    ? new Color(0.16f, 0.08f, 0.07f, 0.74f)
+                    : new Color(0.05f, 0.07f, 0.08f, 0.74f);
+
+            GameObject mainGO = new GameObject("CycleMain", typeof(RectTransform));
+            mainGO.transform.SetParent(rowGO.transform, false);
+            mainGO.AddComponent<LayoutElement>().flexibleWidth = 1f;
+            VerticalLayoutGroup vlg = mainGO.AddComponent<VerticalLayoutGroup>();
+            vlg.childControlWidth = true;
+            vlg.childControlHeight = true;
+            vlg.childForceExpandWidth = true;
+            vlg.childForceExpandHeight = false;
+            vlg.spacing = 1f;
+
+            string route = $"{FormatBody(row.ASpriteName, row.AName)} <color=#777777><-></color> {FormatBody(row.BSpriteName, row.BName)}";
+            string cycles = row.CountMax > 0
+                ? $"{row.CountMission}/{row.CountMax}"
+                : $"{row.CountMission}/∞";
+            string statusColor = row.Paused ? "#F5B041" : row.Ending ? "#FF6B6B" : "#58D68D";
+            AddLine(mainGO.transform, route, 12f, Color.white, TextAlignmentOptions.MidlineLeft, 18f);
+            AddLine(mainGO.transform,
+                $"{FormatShipIconCounts(row.Ships)}  <color=#777777>{row.TransferType}</color>  <color={statusColor}>●</color> <color=#A8A8A8>{cycles}</color>",
+                10f, TextColor, TextAlignmentOptions.MidlineLeft, 16f);
+            AddLine(mainGO.transform,
+                $"<color=#888888>A>B</color> {row.CargoAB}   <color=#888888>B>A</color> {row.CargoBA}",
+                9.5f, TextColor, TextAlignmentOptions.MidlineLeft, 18f);
+
+            GameObject actionsGO = new GameObject("CycleActions", typeof(RectTransform));
+            actionsGO.transform.SetParent(rowGO.transform, false);
+            LayoutElement actionsLE = actionsGO.AddComponent<LayoutElement>();
+            actionsLE.preferredWidth = 144f;
+            HorizontalLayoutGroup actions = actionsGO.AddComponent<HorizontalLayoutGroup>();
+            actions.childControlWidth = true;
+            actions.childControlHeight = true;
+            actions.childForceExpandWidth = false;
+            actions.childForceExpandHeight = false;
+            actions.spacing = 4f;
+            actions.padding = new RectOffset(0, 0, 19, 0);
+
+            AddIconButton(actionsGO.transform, "OpenCycleMission", "i", 32f, false, () => OpenCyclicalMission(row));
+            AddIconButton(actionsGO.transform, row.Paused ? "PlayCycleMission" : "PauseCycleMission", row.Paused ? ">" : "||", 32f, row.Paused, () => ToggleCyclicalPause(row));
+            AddIconButton(actionsGO.transform, "EditCycleMission", "/", 32f, false, () => EditCyclicalMission(row));
+            bool armedDelete = !string.IsNullOrEmpty(_armedCycleDeleteKey) && _armedCycleDeleteKey == row.Key;
+            AddIconButton(actionsGO.transform, "DeleteCycleMission", armedDelete ? "!" : "X", 32f, armedDelete, () => DeleteCyclicalMission(row), danger: true);
+        }
+
+        private void AddTabRow()
+        {
+            GameObject rowGO = MakeRowContainer("TabRow", 32f);
+            HorizontalLayoutGroup hlg = rowGO.GetComponent<HorizontalLayoutGroup>();
+            hlg.spacing = 6f;
+            hlg.padding = new RectOffset(6, 6, 2, 2);
+
+            AddIconButton(rowGO.transform, "FleetTab", "▲", 38f, _activeTab == PanelTab.Fleets, () =>
+            {
+                SwitchTab(PanelTab.Fleets);
+            });
+            AddIconButton(rowGO.transform, "CyclicalTab", "↻", 38f, _activeTab == PanelTab.Cyclical, () =>
+            {
+                SwitchTab(PanelTab.Cyclical);
+            });
+
+            GameObject spacer = new GameObject("TabSpacer", typeof(RectTransform));
+            spacer.transform.SetParent(rowGO.transform, false);
+            spacer.AddComponent<LayoutElement>().flexibleWidth = 1f;
+
+            AddIconButton(rowGO.transform, "RefreshTab", "↺", 32f, false, () => RefreshRows());
+        }
+
+        private void SwitchTab(PanelTab tab)
+        {
+            if (_activeTab == tab) return;
+            _activeTab = tab;
+            _armedCycleDeleteKey = null;
+            RefreshRows();
+            if (ScrollRectRef != null) ScrollRectRef.verticalNormalizedPosition = 1f;
+        }
+
+        private void AddCyclicalFilterRow(List<string> bodyOptions, List<string> shipOptions, List<string> cargoOptions)
+        {
+            GameObject rowGO = MakeRowContainer("CycleFilterRow", 30f);
+            HorizontalLayoutGroup hlg = rowGO.GetComponent<HorizontalLayoutGroup>();
+            hlg.spacing = 4f;
+
+            AddIconButton(rowGO.transform, "CycleFilterAll", "*", 30f, _cycleStatusFilter == CycleStatusFilter.All, () =>
+            {
+                _cycleStatusFilter = CycleStatusFilter.All;
+                RefreshRows();
+            });
+            AddIconButton(rowGO.transform, "CycleFilterActive", ">", 30f, _cycleStatusFilter == CycleStatusFilter.Active, () =>
+            {
+                _cycleStatusFilter = CycleStatusFilter.Active;
+                RefreshRows();
+            });
+            AddIconButton(rowGO.transform, "CycleFilterPaused", "||", 34f, _cycleStatusFilter == CycleStatusFilter.Paused, () =>
+            {
+                _cycleStatusFilter = CycleStatusFilter.Paused;
+                RefreshRows();
+            });
+            AddIconButton(rowGO.transform, "CycleFilterEnding", "!", 30f, _cycleStatusFilter == CycleStatusFilter.Ending, () =>
+            {
+                _cycleStatusFilter = CycleStatusFilter.Ending;
+                RefreshRows();
+            });
+
+            GameObject spacer = new GameObject("FilterSpacer", typeof(RectTransform));
+            spacer.transform.SetParent(rowGO.transform, false);
+            spacer.AddComponent<LayoutElement>().flexibleWidth = 1f;
+
+            AddDropdown(rowGO.transform, "Body", bodyOptions, _bodyFilter, value => { _bodyFilter = value; RefreshRows(); });
+            AddDropdown(rowGO.transform, "Ship", shipOptions, _shipFilter, value => { _shipFilter = value; RefreshRows(); });
+            AddDropdown(rowGO.transform, "Cargo", cargoOptions, _cargoFilter, value => { _cargoFilter = value; RefreshRows(); });
+            AddClearFilterButton(rowGO.transform);
+        }
+
         private void AddFilterRow(List<string> bodyOptions, List<string> shipOptions, List<string> cargoOptions)
         {
             GameObject rowGO = MakeRowContainer("FilterRow", 30f);
@@ -1465,7 +1872,7 @@ namespace SolarExpanseFleetTracker.UI
             dropdown.value = selectedIndex;
             dropdown.targetGraphic = bg;
 
-            TextMeshProUGUI caption = AddDropdownText(root.transform, "Label", $"{label}: {options[selectedIndex]}", TextAlignmentOptions.MidlineLeft);
+            TextMeshProUGUI caption = AddDropdownText(root.transform, "Label", $"{FilterIcon(label)} {options[selectedIndex]}", TextAlignmentOptions.MidlineLeft);
             caption.margin = new Vector4(6, 0, 16, 0);
             dropdown.captionText = caption;
             dropdown.template = BuildDropdownTemplate(root.transform, out TextMeshProUGUI itemText, out ScrollRect templateScroll);
@@ -1567,12 +1974,12 @@ namespace SolarExpanseFleetTracker.UI
         {
             GameObject buttonGO = new GameObject("ClearFilters", typeof(RectTransform));
             buttonGO.transform.SetParent(parent, false);
-            buttonGO.AddComponent<LayoutElement>().preferredWidth = 70f;
+            buttonGO.AddComponent<LayoutElement>().preferredWidth = 32f;
             Image bg = buttonGO.AddComponent<Image>();
             bg.color = new Color(0.12f, 0.14f, 0.16f, 0.95f);
             Button button = buttonGO.AddComponent<Button>();
             button.targetGraphic = bg;
-            AddDropdownText(buttonGO.transform, "Label", "Clear", TextAlignmentOptions.Center);
+            AddDropdownText(buttonGO.transform, "Label", "X", TextAlignmentOptions.Center);
             button.onClick.AddListener(() =>
             {
                 _bodyFilter = FilterAllBodies;
@@ -1676,6 +2083,63 @@ namespace SolarExpanseFleetTracker.UI
             return tmp;
         }
 
+        private TextMeshProUGUI AddLine(Transform parent, string text, float fontSize, Color color,
+            TextAlignmentOptions alignment, float preferredHeight)
+        {
+            GameObject go = new GameObject("Line", typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            go.AddComponent<LayoutElement>().preferredHeight = preferredHeight;
+            TextMeshProUGUI tmp = go.AddComponent<TextMeshProUGUI>();
+            if (FontAsset != null) tmp.font = FontAsset;
+            tmp.text = text;
+            tmp.fontSize = fontSize;
+            tmp.color = color;
+            tmp.enableWordWrapping = false;
+            tmp.overflowMode = TextOverflowModes.Ellipsis;
+            tmp.alignment = alignment;
+            tmp.raycastTarget = false;
+            return tmp;
+        }
+
+        private Button AddIconButton(Transform parent, string name, string icon, float width, bool active,
+            Action onClick, bool danger = false)
+        {
+            GameObject buttonGO = new GameObject(name, typeof(RectTransform));
+            buttonGO.transform.SetParent(parent, false);
+            LayoutElement le = buttonGO.AddComponent<LayoutElement>();
+            le.preferredWidth = width;
+            le.preferredHeight = 26f;
+
+            Image bg = buttonGO.AddComponent<Image>();
+            Color normal = danger
+                ? new Color(0.24f, 0.04f, 0.03f, 0.94f)
+                : new Color(0.12f, 0.14f, 0.16f, 0.94f);
+            Color selected = danger
+                ? new Color(0.44f, 0.08f, 0.05f, 1f)
+                : new Color(0.08f, 0.28f, 0.32f, 1f);
+            bg.color = active ? selected : normal;
+
+            Button button = buttonGO.AddComponent<Button>();
+            button.targetGraphic = bg;
+            button.colors = new ColorBlock
+            {
+                normalColor = active ? selected : normal,
+                highlightedColor = active ? selected * 1.15f : normal * 1.25f,
+                pressedColor = normal * 0.72f,
+                selectedColor = active ? selected : normal,
+                disabledColor = normal * 0.45f,
+                colorMultiplier = 1f,
+                fadeDuration = 0.08f
+            };
+            button.onClick.AddListener(() => onClick?.Invoke());
+
+            TextMeshProUGUI label = AddDropdownText(buttonGO.transform, "Icon", icon, TextAlignmentOptions.Center);
+            label.fontSize = icon == "||" ? 12f : 14f;
+            label.fontStyle = FontStyles.Bold;
+            label.color = danger ? new Color(1f, 0.82f, 0.78f) : Color.white;
+            return button;
+        }
+
         private void MakeClickable(GameObject rowGO, Action onClick)
         {
             Image img = rowGO.GetComponent<Image>() ?? rowGO.AddComponent<Image>();
@@ -1723,6 +2187,135 @@ namespace SolarExpanseFleetTracker.UI
             catch (Exception e) { TrackerLog.LogWarning($"[FT] ship click: {e.Message}"); }
         }
 
+        private void OpenCyclicalMission(CyclicalMissionRow row)
+        {
+            if (row?.Mission == null) return;
+            try
+            {
+                TryOpenWindowByName(row.Mission, "Missions", "Mission");
+                InvokeOnLiveGameObjects("Game.UI.Windows.Windows.MissionsWindow", "ShowCyclicalMission", row.Mission);
+            }
+            catch (Exception e)
+            {
+                TrackerLog.LogWarning($"[FT] cyclical open: {e.Message}");
+            }
+        }
+
+        private void EditCyclicalMission(CyclicalMissionRow row)
+        {
+            if (row?.Mission == null) return;
+            try
+            {
+                bool opened = TryOpenWindowByName(row.Mission,
+                    "PlanCyclicalMission", "PlanCyclicalMissionWindow", "CyclicalMission", "Missions");
+                bool seeded =
+                    InvokeOnLiveGameObjects("Game.UI.Windows.Windows.PlanCyclicalMissionWindow", "SetData", row.Mission) ||
+                    InvokeOnLiveGameObjects("Game.UI.Windows.Windows.PlanCyclicalMissionWindow", "SetCyclicalData", row.Mission) ||
+                    InvokeOnLiveGameObjects("Game.UI.Windows.Windows.MissionsWindow", "ShowCyclicalMission", row.Mission);
+
+                if (!opened && !seeded)
+                    OpenCyclicalMission(row);
+            }
+            catch (Exception e)
+            {
+                TrackerLog.LogWarning($"[FT] cyclical edit: {e.Message}");
+                OpenCyclicalMission(row);
+            }
+        }
+
+        private void ToggleCyclicalPause(CyclicalMissionRow row)
+        {
+            if (row?.Mission == null) return;
+            try
+            {
+                bool nextPaused = !row.Paused;
+                if (!WriteMemberValue(row.Mission, nextPaused, "Pause", "pause"))
+                    TrackerLog.LogWarning("[FT] cyclical pause: could not write Pause field");
+
+                InvokeCycleManagerAction("RefreshAfterEdit", row.Mission);
+                InvokeCycleManagerAction("CheckCyclicalMission", row.Mission);
+                RefreshRows();
+            }
+            catch (Exception e)
+            {
+                TrackerLog.LogWarning($"[FT] cyclical pause: {e.Message}");
+            }
+        }
+
+        private void DeleteCyclicalMission(CyclicalMissionRow row)
+        {
+            if (row?.Mission == null) return;
+            try
+            {
+                bool armed = !string.IsNullOrEmpty(_armedCycleDeleteKey) && _armedCycleDeleteKey == row.Key;
+                if (!armed)
+                {
+                    _armedCycleDeleteKey = row.Key;
+                    _armedCycleDeleteUntil = Time.unscaledTime + 4f;
+                    RefreshRows();
+                    return;
+                }
+
+                _armedCycleDeleteKey = null;
+                if (!InvokeCycleManagerAction("RemoveCycleMission", row.Mission))
+                    TrackerLog.LogWarning("[FT] cyclical delete: native RemoveCycleMission method not found");
+                RefreshRows();
+            }
+            catch (Exception e)
+            {
+                TrackerLog.LogWarning($"[FT] cyclical delete: {e.Message}");
+            }
+        }
+
+        private bool InvokeCycleManagerAction(string methodName, object mission)
+        {
+            Company player = MonoBehaviourSingleton<GameManager>.Instance?.Player;
+            foreach (object manager in FindCycleMissionManagerTargets())
+            {
+                Type targetType = GetTargetType(manager);
+                if (TryInvokeCompatibleMethod(manager, targetType, methodName, new[] { mission }, out _)) return true;
+                if (player != null && TryInvokeCompatibleMethod(manager, targetType, methodName, new object[] { player, mission }, out _)) return true;
+                if (player != null && TryInvokeCompatibleMethod(manager, targetType, methodName, new object[] { mission, player }, out _)) return true;
+            }
+            return false;
+        }
+
+        private bool InvokeOnLiveGameObjects(string typeName, string methodName, object payload)
+        {
+            Type type = FindGameType(typeName);
+            if (type == null) return false;
+
+            bool invoked = false;
+            if (TryInvokeCompatibleMethod(type, type, methodName, new[] { payload }, out _))
+                invoked = true;
+
+            if (!typeof(UnityEngine.Object).IsAssignableFrom(type)) return invoked;
+            UnityEngine.Object[] objects = null;
+            try { objects = Resources.FindObjectsOfTypeAll(type); }
+            catch { }
+            if (objects == null) return invoked;
+
+            foreach (UnityEngine.Object obj in objects)
+            {
+                if (obj == null) continue;
+                if (TryInvokeCompatibleMethod(obj, type, methodName, new[] { payload }, out _))
+                    invoked = true;
+            }
+            return invoked;
+        }
+
+        private bool TryOpenWindowByName(object payload, params string[] names)
+        {
+            foreach (string name in names)
+            {
+                object windowType = FindWindowType(name);
+                if (windowType == null) continue;
+                if (InvokeOpenWindow(windowType, payload)) return true;
+                if (InvokeOpenWindow(windowType, null)) return true;
+            }
+            return false;
+        }
+
         private static object FindWindowType(params string[] names)
         {
             foreach (string name in names)
@@ -1740,21 +2333,178 @@ namespace SolarExpanseFleetTracker.UI
         private static bool InvokeOpenWindow(object windowType, object payload)
         {
             UIManager ui = UIManager.Instance;
-            if (ui == null || windowType == null || payload == null) return false;
+            if (ui == null || windowType == null) return false;
 
             Type uiType = ui.GetType();
+            if (payload != null && TryInvokeOpenWindow(ui, uiType, windowType, payload, preferPayload: true)) return true;
+            if (TryInvokeOpenWindow(ui, uiType, windowType, payload, preferPayload: false)) return true;
+            return payload != null && TryInvokeOpenWindow(ui, uiType, windowType, null, preferPayload: false);
+        }
+
+        private static bool TryInvokeOpenWindow(UIManager ui, Type uiType, object windowType, object payload, bool preferPayload)
+        {
             foreach (MethodInfo method in uiType.GetMethods(AnyMember))
             {
                 if (!string.Equals(method.Name, "Open", StringComparison.OrdinalIgnoreCase)) continue;
                 ParameterInfo[] parameters = method.GetParameters();
+
+                if (preferPayload)
+                {
+                    if (parameters.Length != 2) continue;
+                    if (!parameters[0].ParameterType.IsInstanceOfType(windowType)) continue;
+                    if (payload == null || (!parameters[1].ParameterType.IsInstanceOfType(payload) && parameters[1].ParameterType != typeof(object))) continue;
+                    method.Invoke(ui, new[] { windowType, payload });
+                    return true;
+                }
+
+                if (parameters.Length == 1)
+                {
+                    if (!parameters[0].ParameterType.IsInstanceOfType(windowType)) continue;
+                    method.Invoke(ui, new[] { windowType });
+                    return true;
+                }
+
                 if (parameters.Length != 2) continue;
                 if (!parameters[0].ParameterType.IsInstanceOfType(windowType)) continue;
-                if (!parameters[1].ParameterType.IsInstanceOfType(payload) && parameters[1].ParameterType != typeof(object)) continue;
-
+                if (payload != null && !parameters[1].ParameterType.IsInstanceOfType(payload) && parameters[1].ParameterType != typeof(object)) continue;
+                if (payload == null && parameters[1].ParameterType.IsValueType) continue;
                 method.Invoke(ui, new[] { windowType, payload });
                 return true;
             }
             return false;
+        }
+
+        private static Type FindGameType(string fullName)
+        {
+            if (string.IsNullOrEmpty(fullName)) return null;
+            Type type = typeof(GameManager).Assembly.GetType(fullName);
+            if (type != null) return type;
+            type = Type.GetType(fullName);
+            if (type != null) return type;
+            return Type.GetType($"{fullName}, Assembly-CSharp");
+        }
+
+        private static Type GetTargetType(object target)
+        {
+            if (target is Type type) return type;
+            return target?.GetType();
+        }
+
+        private static object ReadStaticMemberValue(Type type, params string[] names)
+        {
+            if (type == null) return null;
+            foreach (string name in names)
+            {
+                try
+                {
+                    PropertyInfo prop = type.GetProperty(name, AnyMember | BindingFlags.Static);
+                    if (prop != null && prop.GetIndexParameters().Length == 0)
+                        return prop.GetValue(null, null);
+                }
+                catch { }
+                try
+                {
+                    FieldInfo field = type.GetField(name, AnyMember | BindingFlags.Static);
+                    if (field != null) return field.GetValue(null);
+                }
+                catch { }
+            }
+            return null;
+        }
+
+        private static bool WriteMemberValue(object obj, object value, params string[] names)
+        {
+            if (obj == null) return false;
+            Type type = obj.GetType();
+            foreach (string name in names)
+            {
+                try
+                {
+                    PropertyInfo prop = type.GetProperty(name, AnyMember);
+                    if (prop != null && prop.GetIndexParameters().Length == 0 && prop.CanWrite)
+                    {
+                        prop.SetValue(obj, value, null);
+                        return true;
+                    }
+                }
+                catch { }
+                try
+                {
+                    FieldInfo field = type.GetField(name, AnyMember);
+                    if (field != null)
+                    {
+                        field.SetValue(obj, value);
+                        return true;
+                    }
+                }
+                catch { }
+            }
+            return false;
+        }
+
+        private static object InvokeCompatibleMethod(object target, Type targetType, string name, object[] args)
+        {
+            TryInvokeCompatibleMethod(target, targetType, name, args, out object result);
+            return result;
+        }
+
+        private static bool TryInvokeCompatibleMethod(object target, Type targetType, string name, object[] args, out object result)
+        {
+            result = null;
+            if (targetType == null || string.IsNullOrEmpty(name)) return false;
+            object invokeTarget = target is Type ? null : target;
+            object[] safeArgs = args ?? Array.Empty<object>();
+
+            foreach (MethodInfo method in targetType.GetMethods(AnyMember | BindingFlags.Static))
+            {
+                if (!string.Equals(method.Name, name, StringComparison.OrdinalIgnoreCase)) continue;
+                if (target is Type && !method.IsStatic) continue;
+                if (!method.IsStatic && invokeTarget == null) continue;
+
+                ParameterInfo[] parameters = method.GetParameters();
+                if (!TryBuildMethodArgs(parameters, safeArgs, out object[] invokeArgs)) continue;
+
+                try
+                {
+                    result = method.Invoke(method.IsStatic ? null : invokeTarget, invokeArgs);
+                    return true;
+                }
+                catch { }
+            }
+            return false;
+        }
+
+        private static bool TryBuildMethodArgs(ParameterInfo[] parameters, object[] args, out object[] invokeArgs)
+        {
+            invokeArgs = null;
+            if (args.Length > parameters.Length) return false;
+            object[] built = new object[parameters.Length];
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                if (i >= args.Length)
+                {
+                    if (!parameters[i].IsOptional) return false;
+                    built[i] = parameters[i].DefaultValue;
+                    continue;
+                }
+
+                object arg = args[i];
+                Type parameterType = parameters[i].ParameterType;
+                if (arg == null)
+                {
+                    if (parameterType.IsValueType && Nullable.GetUnderlyingType(parameterType) == null) return false;
+                    built[i] = null;
+                    continue;
+                }
+                if (parameterType.IsInstanceOfType(arg) || parameterType == typeof(object))
+                {
+                    built[i] = arg;
+                    continue;
+                }
+                return false;
+            }
+            invokeArgs = built;
+            return true;
         }
 
         private void UpdateIndicator(int shipCount)
@@ -1794,6 +2544,18 @@ namespace SolarExpanseFleetTracker.UI
                 ? $"<sprite name={spriteName}>"
                 : "<color=#777777>?</color>";
             return $"{icon}<color=#A8A8A8>{Mathf.Max(1, count)}</color>";
+        }
+
+        private static string FormatTransferType(object transferType)
+        {
+            string text = ReadDisplayName(transferType);
+            if (string.IsNullOrEmpty(text)) text = transferType?.ToString() ?? "";
+            return string.IsNullOrEmpty(text) ? "cycle" : text;
+        }
+
+        private static string BuildCyclicalMissionKey(object mission, ObjectInfo a, ObjectInfo b, int countMission, int countMax)
+        {
+            return $"{RuntimeHelpers.GetHashCode(mission)}:{a?.ObjectName}:{b?.ObjectName}:{countMission}:{countMax}";
         }
 
         private static void AddShipCount(List<ShipIconCount> ships, string displayName, string spriteName)
@@ -1918,6 +2680,15 @@ namespace SolarExpanseFleetTracker.UI
             catch { return 0; }
         }
 
+        private static int ToInt(object value)
+        {
+            if (value == null) return 0;
+            if (value is int i) return i;
+            if (value is long l) return (int)Math.Max(int.MinValue, Math.Min(int.MaxValue, l));
+            try { return Convert.ToInt32(value, CultureInfo.InvariantCulture); }
+            catch { return 0; }
+        }
+
         private static DateTime? ToDateTime(object value)
         {
             if (value is DateTime dt && dt != default(DateTime)) return dt;
@@ -1968,6 +2739,20 @@ namespace SolarExpanseFleetTracker.UI
             public TextAlignmentOptions Align;
         }
 
+        private enum PanelTab
+        {
+            Fleets,
+            Cyclical
+        }
+
+        private enum CycleStatusFilter
+        {
+            All,
+            Active,
+            Paused,
+            Ending
+        }
+
         private sealed class FleetSnapshot
         {
             public string Message;
@@ -1978,6 +2763,37 @@ namespace SolarExpanseFleetTracker.UI
             public readonly List<MissionFleetRow> InTransit = new List<MissionFleetRow>();
             public readonly List<MissionFleetRow> Planned = new List<MissionFleetRow>();
             public readonly List<ConstructionFleetRow> Construction = new List<ConstructionFleetRow>();
+        }
+
+        private sealed class CyclicalSnapshot
+        {
+            public string Message;
+            public int ActiveCount;
+            public int PausedCount;
+            public int EndingCount;
+            public readonly List<CyclicalMissionRow> Rows = new List<CyclicalMissionRow>();
+        }
+
+        private sealed class CyclicalMissionRow
+        {
+            public object Mission;
+            public ObjectInfo A;
+            public ObjectInfo B;
+            public string AName;
+            public string BName;
+            public string ASpriteName;
+            public string BSpriteName;
+            public List<ShipIconCount> Ships = new List<ShipIconCount>();
+            public string CargoAB;
+            public string CargoBA;
+            public readonly List<string> CargoLabels = new List<string>();
+            public int CountMission;
+            public int CountMax;
+            public bool Paused;
+            public bool Ending;
+            public string TransferType;
+            public string Key;
+            public string RouteText => $"{AName} <-> {BName}";
         }
 
         private sealed class BodyFleetGroup

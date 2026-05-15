@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+### Added
+- Added a FleetTracker cyclical missions tab with icon-first filters and management buttons.
+
+### Changed
+- Changed FleetTracker filter controls to use compact icon prefixes and an icon clear button.
 
 ## [1.2.0] - 2026-05-14
 ### Added
