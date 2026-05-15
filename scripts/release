@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Package FleetTracker and create a GitHub release"
+#MISE description="Package FleetTracker DLLs and create a GitHub release"
 #USAGE arg "[version]" help="Version to release, with or without v prefix"
 set -euo pipefail
 

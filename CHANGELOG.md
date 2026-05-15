@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-05-15
+### Changed
+- Split ObjectInfo list expansion into a separate `ObjectInfoListExpansion.dll` built and packaged alongside `FleetTracker.dll`.
+
 ## [1.3.0] - 2026-05-15
 ### Added
 - Added a FleetTracker cyclical missions tab with icon-first filters and management buttons.

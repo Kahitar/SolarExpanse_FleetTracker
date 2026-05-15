@@ -8,7 +8,7 @@ using HarmonyLib;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace SolarExpanseFleetTracker.Patches
+namespace SolarExpanseObjectInfoListExpansion
 {
     [HarmonyPatch(typeof(ObjectInfoWindow), nameof(ObjectInfoWindow.RebuildLayout))]
     internal static class ObjectInfoListExpansionPatch
@@ -27,7 +27,7 @@ namespace SolarExpanseFleetTracker.Patches
             }
             catch (Exception ex)
             {
-                FleetTrackerPatch.Log.LogWarning($"[FT] ObjectInfo list expansion failed: {ex}");
+                ObjectInfoListExpansionPlugin.Log?.LogWarning($"[OILE] ObjectInfo list expansion failed: {ex}");
             }
         }
 
@@ -75,7 +75,7 @@ namespace SolarExpanseFleetTracker.Patches
         {
             while (candidateType != null && candidateType != typeof(object))
             {
-                if (candidateType.IsGenericType && candidateType.GetGenericTypeDefinition() == typeof(Game.UI.Windows.Elements.UIList<,>))
+                if (IsUiList(candidateType))
                 {
                     return candidateType;
                 }
@@ -84,6 +84,12 @@ namespace SolarExpanseFleetTracker.Patches
             }
 
             return null;
+        }
+
+        private static bool IsUiList(Type candidateType)
+        {
+            return candidateType.IsGenericType &&
+                   candidateType.GetGenericTypeDefinition() == typeof(Game.UI.Windows.Elements.UIList<,>);
         }
 
         private static UiListAccess GetAccess(Type listType)
@@ -115,7 +121,7 @@ namespace SolarExpanseFleetTracker.Patches
                 if (!loggedReflectionFailure)
                 {
                     loggedReflectionFailure = true;
-                    FleetTrackerPatch.Log.LogWarning("[FT] Could not locate UIList reflection members; object overview lists unchanged.");
+                    ObjectInfoListExpansionPlugin.Log?.LogWarning("[OILE] Could not locate UIList reflection members; object overview lists unchanged.");
                 }
                 return;
             }

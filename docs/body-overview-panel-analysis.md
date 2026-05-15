@@ -58,7 +58,7 @@ This keeps the outer `scrollRectAll` as the only scrollbar and removes the neste
 - The implemented patch is scoped to object overview lists under `Game.UI.Windows.Elements.ObjectInfoElements`.
 - Very long lists will make the object overview content much taller. The outer body overview scrollbar remains necessary.
 - `UIFacilityList.FrameActive()` and `UIResorcesList.FrameActive()` temporarily resize lists during drag/drop; the postfix should re-apply after rebuilds and may also need hooks on `FrameActive`/`FrameDeActive` if drag/drop exposes regressions.
-- Implemented in `Patches/ObjectInfoListExpansionPatch.cs`.
+- Implemented in `ObjectInfoListExpansion/ObjectInfoListExpansionPatch.cs` and built as `ObjectInfoListExpansion.dll`.
 
 ## Conclusion
 

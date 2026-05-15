@@ -4,10 +4,11 @@
     <TargetFramework>net472</TargetFramework>
     <LangVersion>8.0</LangVersion>
     <Nullable>enable</Nullable>
-    <AssemblyName>FleetTracker</AssemblyName>
-    <RootNamespace>SolarExpanseFleetTracker</RootNamespace>
+    <AssemblyName>ObjectInfoListExpansion</AssemblyName>
+    <RootNamespace>SolarExpanseObjectInfoListExpansion</RootNamespace>
     <Optimize>false</Optimize>
     <DebugType>portable</DebugType>
+    <BaseOutputPath>../bin/</BaseOutputPath>
     <SolarExpanseRoot>$(SOLAR_EXPANSE_ROOT)</SolarExpanseRoot>
     <BepInExCoreDir>$(SolarExpanseRoot)/BepInEx/core</BepInExCoreDir>
     <BepInExPluginsDir>$(SolarExpanseRoot)/BepInEx/plugins</BepInExPluginsDir>
@@ -33,7 +34,6 @@
   </Target>
 
   <ItemGroup>
-    <Compile Remove="ObjectInfoListExpansion/**/*.cs" />
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="All" />
   </ItemGroup>
 
@@ -64,10 +64,6 @@
     </Reference>
     <Reference Include="UnityEngine.UIModule">
       <HintPath>$(SolarExpanseManagedDir)/UnityEngine.UIModule.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="Unity.TextMeshPro">
-      <HintPath>$(SolarExpanseManagedDir)/Unity.TextMeshPro.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Sirenix.Serialization">
