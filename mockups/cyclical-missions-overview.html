@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cyclical Missions Overview Mockup</title>
+  <style>
+    :root {
+      --bg: #101722;
+      --panel: #182331;
+      --panel-2: #213247;
+      --text: #e8f0ff;
+      --muted: #93a7bd;
+      --line: #30465d;
+      --accent: #62c7ff;
+      --good: #58d68d;
+      --warn: #f5b041;
+      --danger: #ff6b6b;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at top, #1d2b3b 0, var(--bg) 48rem);
+      color: var(--text);
+      font: 14px/1.4 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      padding: 28px;
+    }
+
+    .window {
+      max-width: 1180px;
+      margin: 0 auto;
+      background: rgba(24, 35, 49, 0.96);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
+      overflow: hidden;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 18px 22px;
+      background: linear-gradient(90deg, #1d3146, #172536);
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 20px;
+      letter-spacing: 0.02em;
+    }
+
+    .summary {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      color: var(--muted);
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px 10px;
+      background: rgba(255, 255, 255, 0.04);
+      white-space: nowrap;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    .dot.good { background: var(--good); }
+    .dot.warn { background: var(--warn); }
+    .dot.danger { background: var(--danger); }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 14px 22px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(16, 23, 34, 0.45);
+    }
+
+    .filters,
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      color: var(--text);
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 7px 11px;
+      font: inherit;
+    }
+
+    button.primary {
+      border-color: #3c91bd;
+      background: #164c70;
+    }
+
+    main { padding: 18px 22px 22px; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1.3fr 1fr 0.8fr 1fr 1fr 0.7fr;
+      gap: 1px;
+      background: var(--line);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .cell {
+      background: var(--panel);
+      padding: 12px;
+      min-height: 56px;
+    }
+
+    .head {
+      min-height: unset;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      background: #142032;
+      padding-top: 9px;
+      padding-bottom: 9px;
+    }
+
+    .route {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-weight: 650;
+    }
+
+    .sub {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 400;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-weight: 650;
+    }
+
+    .cargo {
+      display: grid;
+      gap: 4px;
+    }
+
+    .progress {
+      height: 7px;
+      margin-top: 8px;
+      border-radius: 999px;
+      background: #0e1520;
+      overflow: hidden;
+    }
+
+    .bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--good));
+    }
+
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: 1fr; }
+      .head { display: none; }
+      .cell { min-height: auto; }
+      .cell::before {
+        content: attr(data-label);
+        display: block;
+        margin-bottom: 5px;
+        color: var(--muted);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+    }
+  </style>
+</head>
+<body>
+  <section class="window" aria-label="Cyclical missions overview mockup">
+    <header>
+      <div>
+        <h1>Cyclical Missions</h1>
+        <div class="sub">FleetTracker read-only overview concept</div>
+      </div>
+      <div class="summary">
+        <span class="pill"><span class="dot good"></span> 4 active</span>
+        <span class="pill"><span class="dot warn"></span> 1 paused</span>
+        <span class="pill"><span class="dot danger"></span> 1 ending</span>
+      </div>
+    </header>
+
+    <nav class="toolbar" aria-label="Filters and actions">
+      <div class="filters">
+        <button class="primary">All routes</button>
+        <button>Active</button>
+        <button>Paused</button>
+        <button>Ending</button>
+      </div>
+      <div class="actions">
+        <button>Sort by route</button>
+        <button>Refresh</button>
+      </div>
+    </nav>
+
+    <main>
+      <div class="grid" role="table" aria-label="Cyclical mission routes">
+        <div class="cell head">Route</div>
+        <div class="cell head">Spacecraft</div>
+        <div class="cell head">Status</div>
+        <div class="cell head">Cargo A → B</div>
+        <div class="cell head">Cargo B → A</div>
+        <div class="cell head">Cycles</div>
+
+        <div class="cell" data-label="Route">
+          <div class="route">Earth ↔ Mars <span class="sub">Transfer: Hohmann</span></div>
+        </div>
+        <div class="cell" data-label="Spacecraft">Hermes, Daedalus <div class="sub">2 craft assigned</div></div>
+        <div class="cell" data-label="Status"><span class="status"><span class="dot good"></span>Active</span></div>
+        <div class="cell cargo" data-label="Cargo A → B">Crew: 12 <span class="sub">Supplies: 18 t</span></div>
+        <div class="cell cargo" data-label="Cargo B → A">Science: 6 t <span class="sub">Empty capacity: 22 t</span></div>
+        <div class="cell" data-label="Cycles">8 / ∞ <div class="progress"><div class="bar" style="width: 80%"></div></div></div>
+
+        <div class="cell" data-label="Route">
+          <div class="route">Moon ↔ LEO <span class="sub">Transfer: Fast cargo</span></div>
+        </div>
+        <div class="cell" data-label="Spacecraft">Mule-3 <div class="sub">1 craft assigned</div></div>
+        <div class="cell" data-label="Status"><span class="status"><span class="dot warn"></span>Paused</span></div>
+        <div class="cell cargo" data-label="Cargo A → B">Ore: 40 t</div>
+        <div class="cell cargo" data-label="Cargo B → A">Equipment: 8 t</div>
+        <div class="cell" data-label="Cycles">3 / 10 <div class="progress"><div class="bar" style="width: 30%"></div></div></div>
+
+        <div class="cell" data-label="Route">
+          <div class="route">Ceres ↔ Mars <span class="sub">Transfer: Economical</span></div>
+        </div>
+        <div class="cell" data-label="Spacecraft">Prospector II <div class="sub">1 craft assigned</div></div>
+        <div class="cell" data-label="Status"><span class="status"><span class="dot danger"></span>Ending</span></div>
+        <div class="cell cargo" data-label="Cargo A → B">Water: 25 t</div>
+        <div class="cell cargo" data-label="Cargo B → A">Machinery: 4 t</div>
+        <div class="cell" data-label="Cycles">9 / 10 <div class="progress"><div class="bar" style="width: 90%"></div></div></div>
+      </div>
+    </main>
+  </section>
+</body>
+</html>
