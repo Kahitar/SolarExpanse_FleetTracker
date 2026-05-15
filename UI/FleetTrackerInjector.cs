@@ -839,8 +839,8 @@ namespace SolarExpanseFleetTracker.UI
                     });
                 }
 
-                string cargoAB = FormatCargoIcons(ReadMemberValue(mission, "cargoAllStart", "CargoAllStart", "CargoStart", "cargoStart"), out List<string> cargoABLabels);
-                string cargoBA = FormatCargoIcons(ReadMemberValue(mission, "cargoAllEnd", "CargoAllEnd", "CargoEnd", "cargoEnd"), out List<string> cargoBALabels);
+                string cargoAB = FormatCyclicalCargoIcons(ReadMemberValue(mission, "cargoAllStart", "CargoAllStart", "CargoStart", "cargoStart"), out List<string> cargoABLabels);
+                string cargoBA = FormatCyclicalCargoIcons(ReadMemberValue(mission, "cargoAllEnd", "CargoAllEnd", "CargoEnd", "cargoEnd"), out List<string> cargoBALabels);
                 int countMission = ToInt(ReadMemberValue(mission, "CountMission", "countMission"));
                 int countMax = ToInt(ReadMemberValue(mission, "CountMax", "countMax"));
 
@@ -856,6 +856,9 @@ namespace SolarExpanseFleetTracker.UI
                     Ships = ships,
                     CargoAB = cargoAB,
                     CargoBA = cargoBA,
+                    CargoModeAB = FormatCargoModeIcon(ReadMemberValue(mission, "CargoStart", "cargoStart")),
+                    CargoModeBA = FormatCargoModeIcon(ReadMemberValue(mission, "CargoEnd", "cargoEnd")),
+                    CargoCrew = ToInt(ReadMemberValue(mission, "CargoCrew", "cargoCrew")),
                     CountMission = countMission,
                     CountMax = countMax,
                     Paused = ReadBoolMember(mission, "Pause", "pause", "IsPaused", "isPaused"),
@@ -1481,6 +1484,48 @@ namespace SolarExpanseFleetTracker.UI
             return string.Join(" ", parts.Take(8));
         }
 
+        private string FormatCyclicalCargoIcons(object cycleCargo, out List<string> labels)
+        {
+            string regular = FormatCargoIcons(cycleCargo, out labels);
+            if (regular != EmptyCargoText())
+                return regular;
+
+            labels = new List<string>();
+            if (cycleCargo == null) return EmptyCargoText();
+
+            List<string> parts = new List<string>();
+            AddCyclicalCargoList(parts, labels, ReadMemberValue(cycleCargo, "Tab", "tab", "tab2"));
+            AddCyclicalCargoList(parts, labels, ReadMemberValue(cycleCargo, "ListSM", "listSM"));
+
+            return parts.Count > 0 ? string.Join(" ", parts.Take(8)) : EmptyCargoText();
+        }
+
+        private void AddCyclicalCargoList(List<string> parts, List<string> labels, object listObject)
+        {
+            if (listObject == null || listObject is string) return;
+            if (!(listObject is IEnumerable enumerable))
+            {
+                AddCyclicalCargoItem(parts, labels, listObject);
+                return;
+            }
+
+            foreach (object item in enumerable)
+                AddCyclicalCargoItem(parts, labels, item);
+        }
+
+        private void AddCyclicalCargoItem(List<string> parts, List<string> labels, object item)
+        {
+            if (item == null) return;
+
+            string icon = ResolveCargoIcon(item);
+            if (string.IsNullOrEmpty(icon)) return;
+            if (!parts.Contains(icon)) parts.Add(icon);
+
+            string label = ReadCargoLabel(item);
+            if (!string.IsNullOrEmpty(label) && !labels.Any(existing => SameFilter(existing, label)))
+                labels.Add($"{icon} {label}");
+        }
+
         private void AddCargoList(List<string> parts, List<string> labels, object listObject)
         {
             if (listObject == null || listObject is string) return;
@@ -1644,6 +1689,39 @@ namespace SolarExpanseFleetTracker.UI
             return "*";
         }
 
+        private static string FormatCargoModeIcon(object mode)
+        {
+            string text = mode?.ToString() ?? "";
+            if (text.IndexOf("Wait", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                text.IndexOf("Fill", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return "<color=#D9D16A>●</color>";
+            }
+            if (text.IndexOf("Available", StringComparison.OrdinalIgnoreCase) >= 0)
+                return "<color=#55D5FF>○</color>";
+            return "<color=#666666>?</color>";
+        }
+
+        private static string FormatCyclicalCargoLanes(CyclicalMissionRow row)
+        {
+            string ab = $"{FormatBodyIcon(row.ASpriteName)}<color=#777777>></color>{FormatBodyIcon(row.BSpriteName)} {row.CargoModeAB} {row.CargoAB}";
+            string ba = $"{FormatBodyIcon(row.BSpriteName)}<color=#777777>></color>{FormatBodyIcon(row.ASpriteName)} {row.CargoModeBA} {row.CargoBA}";
+            return $"{ab}   {ba}{FormatCrewCargo(row.CargoCrew)}";
+        }
+
+        private static string FormatBodyIcon(string spriteName)
+        {
+            return !string.IsNullOrEmpty(spriteName)
+                ? $"<sprite name={spriteName}>"
+                : "<color=#777777>●</color>";
+        }
+
+        private static string FormatCrewCargo(int crew)
+        {
+            if (crew <= 0) return "";
+            return $"   {ResourceSpriteTagForKey("id_resource_human")}<color=#A8A8A8>{crew}</color>";
+        }
+
         private static string BaseBodyName(string value)
         {
             string text = FilterText(value);
@@ -1724,7 +1802,7 @@ namespace SolarExpanseFleetTracker.UI
 
         private void BuildCyclicalMissionRow(CyclicalMissionRow row)
         {
-            GameObject rowGO = MakeRowContainer($"Cycle_{row.RouteText}", 64f);
+            GameObject rowGO = MakeRowContainer($"Cycle_{row.RouteText}", 54f);
             Image bg = rowGO.AddComponent<Image>();
             bg.color = row.Paused
                 ? new Color(0.14f, 0.12f, 0.07f, 0.74f)
@@ -1742,18 +1820,15 @@ namespace SolarExpanseFleetTracker.UI
             vlg.childForceExpandHeight = false;
             vlg.spacing = 1f;
 
-            string route = $"{FormatBody(row.ASpriteName, row.AName)} <color=#777777><-></color> {FormatBody(row.BSpriteName, row.BName)}";
+            string route = $"{FormatBody(row.ASpriteName, row.AName)} <color=#777777><-></color> {FormatBody(row.BSpriteName, row.BName)}  <color=#555555>|</color> {FormatCyclicalCargoLanes(row)}";
             string cycles = row.CountMax > 0
                 ? $"{row.CountMission}/{row.CountMax}"
                 : $"{row.CountMission}/∞";
             string statusColor = row.Paused ? "#F5B041" : row.Ending ? "#FF6B6B" : "#58D68D";
-            AddLine(mainGO.transform, route, 12f, Color.white, TextAlignmentOptions.MidlineLeft, 18f);
+            AddLine(mainGO.transform, route, 12f, Color.white, TextAlignmentOptions.MidlineLeft, 24f);
             AddLine(mainGO.transform,
                 $"{FormatShipIconCounts(row.Ships)}  <color=#777777>{row.TransferType}</color>  <color={statusColor}>●</color> <color=#A8A8A8>{cycles}</color>",
-                10f, TextColor, TextAlignmentOptions.MidlineLeft, 16f);
-            AddLine(mainGO.transform,
-                $"<color=#888888>A>B</color> {row.CargoAB}   <color=#888888>B>A</color> {row.CargoBA}",
-                9.5f, TextColor, TextAlignmentOptions.MidlineLeft, 18f);
+                10f, TextColor, TextAlignmentOptions.MidlineLeft, 18f);
 
             GameObject actionsGO = new GameObject("CycleActions", typeof(RectTransform));
             actionsGO.transform.SetParent(rowGO.transform, false);
@@ -1765,7 +1840,7 @@ namespace SolarExpanseFleetTracker.UI
             actions.childForceExpandWidth = false;
             actions.childForceExpandHeight = false;
             actions.spacing = 4f;
-            actions.padding = new RectOffset(0, 0, 19, 0);
+            actions.padding = new RectOffset(0, 0, 14, 0);
 
             AddIconButton(actionsGO.transform, "OpenCycleMission", "i", 32f, false, () => OpenCyclicalMission(row));
             AddIconButton(actionsGO.transform, row.Paused ? "PlayCycleMission" : "PauseCycleMission", row.Paused ? ">" : "||", 32f, row.Paused, () => ToggleCyclicalPause(row));
@@ -2786,6 +2861,9 @@ namespace SolarExpanseFleetTracker.UI
             public List<ShipIconCount> Ships = new List<ShipIconCount>();
             public string CargoAB;
             public string CargoBA;
+            public string CargoModeAB;
+            public string CargoModeBA;
+            public int CargoCrew;
             public readonly List<string> CargoLabels = new List<string>();
             public int CountMission;
             public int CountMax;

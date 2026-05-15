@@ -4,11 +4,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+
+## [1.3.0] - 2026-05-15
 ### Added
 - Added a FleetTracker cyclical missions tab with icon-first filters and management buttons.
 
 ### Changed
 - Changed FleetTracker filter controls to use compact icon prefixes and an icon clear button.
+- Changed cyclical mission cargo lanes to show wait-for-full/take-available mode icons and crew cargo count when present.
+- Moved cyclical mission cargo lanes onto the route title line and replaced A/B lane labels with body icons.
+
+### Fixed
+- Fixed cyclical mission cargo lanes showing as empty when the game stores them as cyclical cargo resource/module definitions.
 
 ## [1.2.0] - 2026-05-14
 ### Added
