@@ -5,7 +5,7 @@ using SolarExpanseFleetTracker.UI;
 
 namespace SolarExpanseFleetTracker
 {
-    [BepInPlugin("com.mod.solarexpanse.fleettracker", "FleetTracker", "1.3.1")]
+    [BepInPlugin("com.mod.solarexpanse.fleettracker", "FleetTracker", "1.3.2")]
     public class Plugin : BaseUnityPlugin
     {
         private void Awake()
