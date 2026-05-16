@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Build the FleetTracker mod DLLs"
+#MISE description="Build the FleetTracker mod DLL"
 set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -14,4 +14,3 @@ if ! command -v dotnet >/dev/null 2>&1; then
 fi
 
 dotnet build FleetTracker.csproj -c "$configuration"
-dotnet build ObjectInfoListExpansion/ObjectInfoListExpansion.csproj -c "$configuration"
