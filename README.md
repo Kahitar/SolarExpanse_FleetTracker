@@ -8,7 +8,7 @@ A fleet overview mod for Solar Expanse.
 - **See where everything is:** groups your spacecraft by ships parked at bodies, ships in flight, planned missions, and ships being built.
 - **Cargo at a glance:** shows cargo for active and planned missions without opening each spacecraft one by one.
 - **Construction tracking:** lists ships under construction and shows finish timing when the game exposes enough information.
-- **Cyclical mission view:** shows repeating routes, cargo lanes, wait/take modes, and mission management actions in one place.
+- **Cyclical mission view:** shows repeating routes, cargo lanes, wait/take modes, and quick pause/delete controls in one place.
 - **Useful filters:** narrow the fleet list by body, ship type, cargo, and mission state.
 
 ## Installation

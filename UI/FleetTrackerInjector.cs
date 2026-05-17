@@ -827,17 +827,9 @@ namespace SolarExpanseFleetTracker.UI
                 ObjectInfo b = ReadMemberValue(mission, "B", "b", "Target", "target") as ObjectInfo;
                 List<object> craftInfos = GetCyclicalCraftInfos(mission);
                 List<ShipIconCount> ships = GetCraftIconCounts(craftInfos);
-                int countSC = ToInt(ReadMemberValue(mission, "CountSC", "countSC"));
+                int countSC = GetCyclicalAssignedShipCount(mission);
                 if (ships.Count == 0 && countSC > 0)
-                {
-                    ships.Add(new ShipIconCount
-                    {
-                        Key = "Spacecraft\u001f",
-                        DisplayName = "Spacecraft",
-                        SpriteName = "",
-                        Count = countSC
-                    });
-                }
+                    AddCyclicalFallbackShipCount(ships, mission, countSC);
 
                 string cargoAB = FormatCyclicalCargoIcons(ReadMemberValue(mission, "cargoAllStart", "CargoAllStart", "CargoStart", "cargoStart"), out List<string> cargoABLabels);
                 string cargoBA = FormatCyclicalCargoIcons(ReadMemberValue(mission, "cargoAllEnd", "CargoAllEnd", "CargoEnd", "cargoEnd"), out List<string> cargoBALabels);
@@ -951,12 +943,43 @@ namespace SolarExpanseFleetTracker.UI
         {
             List<object> result = new List<object>();
             AddEnumerable(result, ReadMemberValue(mission, "ListSC", "listSC", "SCList", "listSpacecraft", "ListSpacecraft"));
-            AddEnumerable(result, ReadMemberValue(mission, "scIDList", "SCIDList"));
-
-            foreach (object manager in FindCycleMissionManagerTargets())
-                AddCycleMissionResult(result, InvokeCompatibleMethod(manager, GetTargetType(manager), "GetSCFrom", new[] { mission }));
 
             return DistinctByReference(result);
+        }
+
+        private int GetCyclicalAssignedShipCount(object mission)
+        {
+            int countSC = ToInt(ReadMemberValue(mission, "CountSC", "countSC"));
+            if (countSC > 0) return countSC;
+
+            return CountEnumerable(ReadMemberValue(mission,
+                "scIDList", "SCIDList", "scSpacecraftInfoIDList", "SCSpacecraftInfoIDList"));
+        }
+
+        private void AddCyclicalFallbackShipCount(List<ShipIconCount> ships, object mission, int count)
+        {
+            object craftType = GetCyclicalCraftType(mission);
+            string name = GetCraftTypeName(craftType);
+            string spriteName = GetCraftSpriteName(craftType);
+            if (string.IsNullOrEmpty(name)) name = "Spacecraft";
+
+            ships.Add(new ShipIconCount
+            {
+                Key = $"{name}\u001f{spriteName}",
+                DisplayName = name,
+                SpriteName = spriteName,
+                Count = count
+            });
+        }
+
+        private object GetCyclicalCraftType(object mission)
+        {
+            foreach (object manager in FindCycleMissionManagerTargets())
+            {
+                object craftType = InvokeCompatibleMethod(manager, GetTargetType(manager), "GetSCFrom", new[] { mission });
+                if (craftType != null) return craftType;
+            }
+            return null;
         }
 
         private bool CyclicalMissionBelongsToPlayer(object mission, Company player)
@@ -1378,6 +1401,18 @@ namespace SolarExpanseFleetTracker.UI
             if (!(maybeEnumerable is IEnumerable enumerable)) return;
             foreach (object item in enumerable)
                 AddSingle(result, item);
+        }
+
+        private static int CountEnumerable(object maybeEnumerable)
+        {
+            if (maybeEnumerable == null || maybeEnumerable is string) return 0;
+            if (maybeEnumerable is ICollection collection) return collection.Count;
+            if (!(maybeEnumerable is IEnumerable enumerable)) return 0;
+
+            int count = 0;
+            foreach (object _ in enumerable)
+                count++;
+            return count;
         }
 
         private static void AddSingle(List<object> result, object item)
@@ -1833,7 +1868,7 @@ namespace SolarExpanseFleetTracker.UI
             GameObject actionsGO = new GameObject("CycleActions", typeof(RectTransform));
             actionsGO.transform.SetParent(rowGO.transform, false);
             LayoutElement actionsLE = actionsGO.AddComponent<LayoutElement>();
-            actionsLE.preferredWidth = 144f;
+            actionsLE.preferredWidth = 108f;
             HorizontalLayoutGroup actions = actionsGO.AddComponent<HorizontalLayoutGroup>();
             actions.childControlWidth = true;
             actions.childControlHeight = true;
@@ -1844,7 +1879,6 @@ namespace SolarExpanseFleetTracker.UI
 
             AddIconButton(actionsGO.transform, "OpenCycleMission", "i", 32f, false, () => OpenCyclicalMission(row));
             AddIconButton(actionsGO.transform, row.Paused ? "PlayCycleMission" : "PauseCycleMission", row.Paused ? ">" : "||", 32f, row.Paused, () => ToggleCyclicalPause(row));
-            AddIconButton(actionsGO.transform, "EditCycleMission", "/", 32f, false, () => EditCyclicalMission(row));
             bool armedDelete = !string.IsNullOrEmpty(_armedCycleDeleteKey) && _armedCycleDeleteKey == row.Key;
             AddIconButton(actionsGO.transform, "DeleteCycleMission", armedDelete ? "!" : "X", 32f, armedDelete, () => DeleteCyclicalMission(row), danger: true);
         }

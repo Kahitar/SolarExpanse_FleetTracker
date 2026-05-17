@@ -3,6 +3,13 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased]
+### Changed
+- Removed the edit `/` button from cyclical mission overview rows (was not functional).
+
+### Fixed
+- Fixed cyclical mission overview ship counts showing one extra spacecraft.
+
 ## [1.3.2] - 2026-05-16
 ### Changed
 - Moved ObjectInfo list expansion out of FleetTracker and into the standalone UXTweaks mod.
