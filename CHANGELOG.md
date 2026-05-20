@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 - Fixed cyclical mission overview ship counts showing one extra spacecraft.
+- Reduced FleetTracker refresh lag by moving periodic refresh to an always-active updater and skipping UI rebuilds when rendered fleet/cyclical data has not changed.
 
 ## [1.3.2] - 2026-05-16
 ### Changed

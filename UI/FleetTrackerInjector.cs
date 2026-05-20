@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
+using System.Text;
 using System.Runtime.CompilerServices;
 using BepInEx.Logging;
 using CustomUpdate;
@@ -211,7 +212,7 @@ namespace SolarExpanseFleetTracker.UI
                         panelGO.SetActive(true);
                         mover.PlacePanelUnderButton();
                         scrollRect.verticalNormalizedPosition = 1f;
-                        tracker.RefreshRows();
+                        tracker.RefreshRows(true);
                     }
                     else
                     {
@@ -222,6 +223,8 @@ namespace SolarExpanseFleetTracker.UI
                 tracker.IndicatorLabel = indicatorLabel;
                 tracker.IndicatorRT = indicatorRT;
                 tracker.Mover = mover;
+
+                indicatorGO.AddComponent<TrackerUpdater>().Tracker = tracker;
 
                 log.LogInfo("[FT] Injection complete");
             }
@@ -534,8 +537,9 @@ namespace SolarExpanseFleetTracker.UI
         internal DraggableMover Mover;
         internal ScrollRect ScrollRectRef;
 
-        private float _refreshTimer;
-        private const float RefreshInterval = 5.0f;
+        internal const float RefreshInterval = 5.0f;
+        private string _lastRenderedSignature;
+        private bool _forceNextRefresh = true;
         private const string FilterAllBodies = "All bodies";
         private const string FilterAllShips = "All ships";
         private const string FilterAllCargo = "All cargo";
@@ -619,14 +623,9 @@ namespace SolarExpanseFleetTracker.UI
         private void Update()
         {
             if (!string.IsNullOrEmpty(_armedCycleDeleteKey) && Time.unscaledTime > _armedCycleDeleteUntil)
-                _armedCycleDeleteKey = null;
-
-            _refreshTimer += Time.deltaTime;
-            if (_refreshTimer >= RefreshInterval)
             {
-                _refreshTimer = 0f;
-                if (AnyFilterDropdownOpen()) return;
-                RefreshRows();
+                _armedCycleDeleteKey = null;
+                _forceNextRefresh = true;
             }
         }
 
@@ -640,22 +639,17 @@ namespace SolarExpanseFleetTracker.UI
             return false;
         }
 
-        internal void RefreshRows()
+        internal void RefreshRows(bool force = false)
         {
             try
             {
                 if (ContentParent == null) return;
-
-                for (int i = ContentParent.childCount - 1; i >= 0; i--)
-                    Destroy(ContentParent.GetChild(i).gameObject);
-
-                AddTabRow();
+                if (!force && AnyFilterDropdownOpen()) return;
 
                 if (_activeTab == PanelTab.Cyclical)
                 {
-                    RefreshCyclicalMissionRows();
+                    RefreshCyclicalMissionRows(force);
                     UpdateIndicator(BuildSnapshot().TotalShips);
-                    LayoutRebuilder.ForceRebuildLayoutImmediate(ContentParent as RectTransform);
                     return;
                 }
 
@@ -666,6 +660,20 @@ namespace SolarExpanseFleetTracker.UI
                 NormalizeFilters(bodyOptions, shipOptions, cargoOptions);
                 ApplyFilters(snapshot);
 
+                string signature = BuildFleetRenderSignature(snapshot, bodyOptions, shipOptions, cargoOptions);
+                if (!force && !_forceNextRefresh && string.Equals(signature, _lastRenderedSignature, StringComparison.Ordinal))
+                {
+                    UpdateIndicator(snapshot.TotalShips);
+                    return;
+                }
+                _lastRenderedSignature = signature;
+                _forceNextRefresh = false;
+
+                for (int i = ContentParent.childCount - 1; i >= 0; i--)
+                    Destroy(ContentParent.GetChild(i).gameObject);
+
+                AddTabRow();
+
                 AddTitleRow($"FLEET STATUS  ({snapshot.TotalShips} {Plural(snapshot.TotalShips, "ship", "ships")}, {snapshot.TotalMissions} {Plural(snapshot.TotalMissions, "mission", "missions")}, {snapshot.TotalConstruction} building)");
                 AddFilterRow(bodyOptions, shipOptions, cargoOptions);
 
@@ -673,6 +681,7 @@ namespace SolarExpanseFleetTracker.UI
                 {
                     AddMessageRow(snapshot.Message);
                     UpdateIndicator(snapshot.TotalShips);
+                    LayoutRebuilder.ForceRebuildLayoutImmediate(ContentParent as RectTransform);
                     return;
                 }
 
@@ -740,6 +749,79 @@ namespace SolarExpanseFleetTracker.UI
             }
         }
 
+        private string BuildFleetRenderSignature(FleetSnapshot snapshot, List<string> bodyOptions, List<string> shipOptions, List<string> cargoOptions)
+        {
+            StringBuilder sb = new StringBuilder(2048);
+            sb.Append("tab=").Append(_activeTab).Append("|filters=").Append(_bodyFilter).Append('|').Append(_shipFilter).Append('|').Append(_cargoFilter);
+            AppendOptions(sb, "|bodyOptions=", bodyOptions);
+            AppendOptions(sb, "|shipOptions=", shipOptions);
+            AppendOptions(sb, "|cargoOptions=", cargoOptions);
+            sb.Append("|msg=").Append(snapshot.Message ?? "");
+            sb.Append("|totals=").Append(snapshot.TotalShips).Append('|').Append(snapshot.TotalMissions).Append('|').Append(snapshot.TotalConstruction);
+
+            foreach (BodyFleetGroup row in snapshot.AtBodies)
+            {
+                sb.Append("|body=").Append(row.BodyName).Append('|').Append(row.BodySpriteName);
+                AppendShips(sb, row.Ships);
+            }
+            foreach (MissionFleetRow row in snapshot.InTransit)
+                AppendMission(sb, "|transit=", row);
+            foreach (MissionFleetRow row in snapshot.Planned)
+                AppendMission(sb, "|planned=", row);
+            foreach (ConstructionFleetRow row in snapshot.Construction)
+            {
+                sb.Append("|build=").Append(row.BodyName).Append('|').Append(row.BodySpriteName)
+                    .Append('|').Append(row.ShipTypeName).Append('|').Append(row.ShipSpriteName)
+                    .Append('|').Append(row.Finish?.Ticks ?? 0).Append('|').Append(row.Status).Append('|').Append(row.Count);
+            }
+            return sb.ToString();
+        }
+
+        private string BuildCyclicalRenderSignature(CyclicalSnapshot snapshot, List<string> bodyOptions, List<string> shipOptions, List<string> cargoOptions)
+        {
+            StringBuilder sb = new StringBuilder(2048);
+            sb.Append("tab=").Append(_activeTab).Append("|filters=").Append(_bodyFilter).Append('|').Append(_shipFilter).Append('|').Append(_cargoFilter).Append('|').Append(_cycleStatusFilter);
+            AppendOptions(sb, "|bodyOptions=", bodyOptions);
+            AppendOptions(sb, "|shipOptions=", shipOptions);
+            AppendOptions(sb, "|cargoOptions=", cargoOptions);
+            sb.Append("|msg=").Append(snapshot.Message ?? "");
+            sb.Append("|counts=").Append(snapshot.Rows.Count).Append('|').Append(snapshot.ActiveCount).Append('|').Append(snapshot.PausedCount).Append('|').Append(snapshot.EndingCount);
+
+            foreach (CyclicalMissionRow row in snapshot.Rows)
+            {
+                sb.Append("|cycle=").Append(row.Key).Append('|').Append(row.AName).Append('|').Append(row.BName)
+                    .Append('|').Append(row.ASpriteName).Append('|').Append(row.BSpriteName)
+                    .Append('|').Append(row.CargoAB).Append('|').Append(row.CargoBA)
+                    .Append('|').Append(row.CargoModeAB).Append('|').Append(row.CargoModeBA)
+                    .Append('|').Append(row.CargoCrew).Append('|').Append(row.CountMission).Append('|').Append(row.CountMax)
+                    .Append('|').Append(row.Paused).Append('|').Append(row.Ending).Append('|').Append(row.TransferType);
+                AppendShips(sb, row.Ships);
+            }
+            return sb.ToString();
+        }
+
+        private static void AppendMission(StringBuilder sb, string prefix, MissionFleetRow row)
+        {
+            sb.Append(prefix).Append(row.OriginName).Append('|').Append(row.TargetName)
+                .Append('|').Append(row.OriginSpriteName).Append('|').Append(row.TargetSpriteName)
+                .Append('|').Append(row.Start?.Ticks ?? 0).Append('|').Append(row.Arrival?.Ticks ?? 0)
+                .Append('|').Append(row.Cargo).Append('|').Append(row.ShipCount);
+            AppendShips(sb, row.Ships);
+        }
+
+        private static void AppendShips(StringBuilder sb, IEnumerable<ShipIconCount> ships)
+        {
+            foreach (ShipIconCount ship in ships)
+                sb.Append(";ship=").Append(ship.Key).Append(',').Append(ship.DisplayName).Append(',').Append(ship.SpriteName).Append(',').Append(ship.Count);
+        }
+
+        private static void AppendOptions(StringBuilder sb, string label, IEnumerable<string> options)
+        {
+            sb.Append(label);
+            foreach (string option in options)
+                sb.Append(option).Append('\u001f');
+        }
+
         private FleetSnapshot BuildSnapshot()
         {
             FleetSnapshot snapshot = new FleetSnapshot();
@@ -774,7 +856,7 @@ namespace SolarExpanseFleetTracker.UI
             return snapshot;
         }
 
-        private void RefreshCyclicalMissionRows()
+        private void RefreshCyclicalMissionRows(bool force = false)
         {
             CyclicalSnapshot snapshot = BuildCyclicalSnapshot();
             List<string> bodyOptions = BuildCyclicalBodyFilterOptions(snapshot);
@@ -783,23 +865,37 @@ namespace SolarExpanseFleetTracker.UI
             NormalizeFilters(bodyOptions, shipOptions, cargoOptions);
             ApplyCyclicalFilters(snapshot);
 
+            string signature = BuildCyclicalRenderSignature(snapshot, bodyOptions, shipOptions, cargoOptions);
+            if (!force && !_forceNextRefresh && string.Equals(signature, _lastRenderedSignature, StringComparison.Ordinal))
+                return;
+            _lastRenderedSignature = signature;
+            _forceNextRefresh = false;
+
+            for (int i = ContentParent.childCount - 1; i >= 0; i--)
+                Destroy(ContentParent.GetChild(i).gameObject);
+
+            AddTabRow();
             AddTitleRow($"CYCLICAL MISSIONS  ({snapshot.Rows.Count} {Plural(snapshot.Rows.Count, "route", "routes")}, {snapshot.ActiveCount} active, {snapshot.PausedCount} paused, {snapshot.EndingCount} ending)");
             AddCyclicalFilterRow(bodyOptions, shipOptions, cargoOptions);
 
             if (!string.IsNullOrEmpty(snapshot.Message))
             {
                 AddMessageRow(snapshot.Message);
+                LayoutRebuilder.ForceRebuildLayoutImmediate(ContentParent as RectTransform);
                 return;
             }
 
             if (snapshot.Rows.Count == 0)
             {
                 AddMessageRow("No cyclical missions match the current filters.");
+                LayoutRebuilder.ForceRebuildLayoutImmediate(ContentParent as RectTransform);
                 return;
             }
 
             foreach (CyclicalMissionRow row in snapshot.Rows)
                 BuildCyclicalMissionRow(row);
+
+            LayoutRebuilder.ForceRebuildLayoutImmediate(ContentParent as RectTransform);
         }
 
         private CyclicalSnapshot BuildCyclicalSnapshot()
@@ -1903,7 +1999,7 @@ namespace SolarExpanseFleetTracker.UI
             spacer.transform.SetParent(rowGO.transform, false);
             spacer.AddComponent<LayoutElement>().flexibleWidth = 1f;
 
-            AddIconButton(rowGO.transform, "RefreshTab", "↺", 32f, false, () => RefreshRows());
+            AddIconButton(rowGO.transform, "RefreshTab", "↺", 32f, false, () => RefreshRows(true));
         }
 
         private void SwitchTab(PanelTab tab)
@@ -1911,7 +2007,7 @@ namespace SolarExpanseFleetTracker.UI
             if (_activeTab == tab) return;
             _activeTab = tab;
             _armedCycleDeleteKey = null;
-            RefreshRows();
+            RefreshRows(true);
             if (ScrollRectRef != null) ScrollRectRef.verticalNormalizedPosition = 1f;
         }
 
@@ -1924,31 +2020,31 @@ namespace SolarExpanseFleetTracker.UI
             AddIconButton(rowGO.transform, "CycleFilterAll", "*", 30f, _cycleStatusFilter == CycleStatusFilter.All, () =>
             {
                 _cycleStatusFilter = CycleStatusFilter.All;
-                RefreshRows();
+                RefreshRows(true);
             });
             AddIconButton(rowGO.transform, "CycleFilterActive", ">", 30f, _cycleStatusFilter == CycleStatusFilter.Active, () =>
             {
                 _cycleStatusFilter = CycleStatusFilter.Active;
-                RefreshRows();
+                RefreshRows(true);
             });
             AddIconButton(rowGO.transform, "CycleFilterPaused", "||", 34f, _cycleStatusFilter == CycleStatusFilter.Paused, () =>
             {
                 _cycleStatusFilter = CycleStatusFilter.Paused;
-                RefreshRows();
+                RefreshRows(true);
             });
             AddIconButton(rowGO.transform, "CycleFilterEnding", "!", 30f, _cycleStatusFilter == CycleStatusFilter.Ending, () =>
             {
                 _cycleStatusFilter = CycleStatusFilter.Ending;
-                RefreshRows();
+                RefreshRows(true);
             });
 
             GameObject spacer = new GameObject("FilterSpacer", typeof(RectTransform));
             spacer.transform.SetParent(rowGO.transform, false);
             spacer.AddComponent<LayoutElement>().flexibleWidth = 1f;
 
-            AddDropdown(rowGO.transform, "Body", bodyOptions, _bodyFilter, value => { _bodyFilter = value; RefreshRows(); });
-            AddDropdown(rowGO.transform, "Ship", shipOptions, _shipFilter, value => { _shipFilter = value; RefreshRows(); });
-            AddDropdown(rowGO.transform, "Cargo", cargoOptions, _cargoFilter, value => { _cargoFilter = value; RefreshRows(); });
+            AddDropdown(rowGO.transform, "Body", bodyOptions, _bodyFilter, value => { _bodyFilter = value; RefreshRows(true); });
+            AddDropdown(rowGO.transform, "Ship", shipOptions, _shipFilter, value => { _shipFilter = value; RefreshRows(true); });
+            AddDropdown(rowGO.transform, "Cargo", cargoOptions, _cargoFilter, value => { _cargoFilter = value; RefreshRows(true); });
             AddClearFilterButton(rowGO.transform);
         }
 
@@ -1961,9 +2057,9 @@ namespace SolarExpanseFleetTracker.UI
             spacer.transform.SetParent(rowGO.transform, false);
             spacer.AddComponent<LayoutElement>().flexibleWidth = 1f;
 
-            AddDropdown(rowGO.transform, "Body", bodyOptions, _bodyFilter, value => { _bodyFilter = value; RefreshRows(); });
-            AddDropdown(rowGO.transform, "Ship", shipOptions, _shipFilter, value => { _shipFilter = value; RefreshRows(); });
-            AddDropdown(rowGO.transform, "Cargo", cargoOptions, _cargoFilter, value => { _cargoFilter = value; RefreshRows(); });
+            AddDropdown(rowGO.transform, "Body", bodyOptions, _bodyFilter, value => { _bodyFilter = value; RefreshRows(true); });
+            AddDropdown(rowGO.transform, "Ship", shipOptions, _shipFilter, value => { _shipFilter = value; RefreshRows(true); });
+            AddDropdown(rowGO.transform, "Cargo", cargoOptions, _cargoFilter, value => { _cargoFilter = value; RefreshRows(true); });
             AddClearFilterButton(rowGO.transform);
         }
 
@@ -2094,7 +2190,7 @@ namespace SolarExpanseFleetTracker.UI
                 _bodyFilter = FilterAllBodies;
                 _shipFilter = FilterAllShips;
                 _cargoFilter = FilterAllCargo;
-                RefreshRows();
+                RefreshRows(true);
             });
         }
 
@@ -2343,7 +2439,7 @@ namespace SolarExpanseFleetTracker.UI
 
                 InvokeCycleManagerAction("RefreshAfterEdit", row.Mission);
                 InvokeCycleManagerAction("CheckCyclicalMission", row.Mission);
-                RefreshRows();
+                RefreshRows(true);
             }
             catch (Exception e)
             {
@@ -2361,14 +2457,14 @@ namespace SolarExpanseFleetTracker.UI
                 {
                     _armedCycleDeleteKey = row.Key;
                     _armedCycleDeleteUntil = Time.unscaledTime + 4f;
-                    RefreshRows();
+                    RefreshRows(true);
                     return;
                 }
 
                 _armedCycleDeleteKey = null;
                 if (!InvokeCycleManagerAction("RemoveCycleMission", row.Mission))
                     TrackerLog.LogWarning("[FT] cyclical delete: native RemoveCycleMission method not found");
-                RefreshRows();
+                RefreshRows(true);
             }
             catch (Exception e)
             {
@@ -2955,6 +3051,25 @@ namespace SolarExpanseFleetTracker.UI
             public int Count;
         }
     }
+
+    // Persistent updater lives on the always-active indicator button. The panel GameObject
+    // is inactive while closed, so relying on FleetTrackerPanel.Update would stop refreshes.
+    internal class TrackerUpdater : MonoBehaviour
+    {
+        internal FleetTrackerPanel Tracker;
+        private float _timer;
+
+        private void Update()
+        {
+            _timer += Time.deltaTime;
+            if (_timer >= FleetTrackerPanel.RefreshInterval)
+            {
+                _timer = 0f;
+                Tracker?.RefreshRows();
+            }
+        }
+    }
+
 
     internal class DropdownScrollTuner : MonoBehaviour
     {
