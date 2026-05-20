@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+### Fixed
+- Deferred automatic FleetTracker refreshes while pointer input is held to avoid interfering with game drag-and-drop gestures.
 
 ## [1.4.0] - 2026-05-20
 ### Changed

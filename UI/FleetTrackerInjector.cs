@@ -3056,17 +3056,81 @@ namespace SolarExpanseFleetTracker.UI
     // is inactive while closed, so relying on FleetTrackerPanel.Update would stop refreshes.
     internal class TrackerUpdater : MonoBehaviour
     {
+        private delegate bool GetMouseButtonDelegate(int button);
+
         internal FleetTrackerPanel Tracker;
+        private const float InputReleaseGraceSeconds = 0.25f;
         private float _timer;
+        private float _lastPointerHeldTime = float.NegativeInfinity;
+        private static bool _inputLookupAttempted;
+        private static GetMouseButtonDelegate _getMouseButton;
+        private static Func<int> _getTouchCount;
 
         private void Update()
         {
             _timer += Time.deltaTime;
+            if (AnyPointerButtonHeld())
+            {
+                _lastPointerHeldTime = Time.unscaledTime;
+                return;
+            }
+
+            if (Time.unscaledTime - _lastPointerHeldTime < InputReleaseGraceSeconds)
+                return;
+
             if (_timer >= FleetTrackerPanel.RefreshInterval)
             {
                 _timer = 0f;
                 Tracker?.RefreshRows();
             }
+        }
+
+        private static bool AnyPointerButtonHeld()
+        {
+            EnsureInputReflection();
+            try
+            {
+                return (_getMouseButton != null &&
+                        (_getMouseButton(0) || _getMouseButton(1) || _getMouseButton(2))) ||
+                       (_getTouchCount != null && _getTouchCount() > 0);
+            }
+            catch
+            {
+                _getMouseButton = null;
+                _getTouchCount = null;
+                return false;
+            }
+        }
+
+        private static void EnsureInputReflection()
+        {
+            if (_inputLookupAttempted) return;
+            _inputLookupAttempted = true;
+
+            Type inputType =
+                Type.GetType("UnityEngine.Input, UnityEngine.InputLegacyModule") ??
+                Type.GetType("UnityEngine.Input, UnityEngine.CoreModule") ??
+                typeof(UnityEngine.Object).Assembly.GetType("UnityEngine.Input");
+            if (inputType == null) return;
+
+            try
+            {
+                MethodInfo getMouseButton = inputType.GetMethod("GetMouseButton",
+                    BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(int) }, null);
+                if (getMouseButton != null)
+                    _getMouseButton = (GetMouseButtonDelegate)Delegate.CreateDelegate(
+                        typeof(GetMouseButtonDelegate), getMouseButton);
+            }
+            catch { }
+
+            try
+            {
+                MethodInfo touchCountGetter = inputType.GetProperty("touchCount",
+                    BindingFlags.Public | BindingFlags.Static)?.GetGetMethod();
+                if (touchCountGetter != null)
+                    _getTouchCount = (Func<int>)Delegate.CreateDelegate(typeof(Func<int>), touchCountGetter);
+            }
+            catch { }
         }
     }
 
