@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+
+## [1.4.0] - 2026-05-20
 ### Changed
 - Removed the edit `/` button from cyclical mission overview rows (was not functional).
 
