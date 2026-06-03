@@ -18,6 +18,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using SolarExpanseFleetTracker.Patches;
 
 namespace SolarExpanseFleetTracker.UI
 {
@@ -160,6 +161,7 @@ namespace SolarExpanseFleetTracker.UI
                 resizeHandleGO.AddComponent<ResizeHandle>().PanelRT = panelRT;
 
                 panelGO.SetActive(false);
+                PauseScreenEscPatch.PanelGO = panelGO;
 
                 FleetTrackerPanel tracker = panelGO.AddComponent<FleetTrackerPanel>();
                 tracker.ContentParent = contentGO.transform;
@@ -210,8 +212,14 @@ namespace SolarExpanseFleetTracker.UI
                     if (!open)
                     {
                         panelGO.SetActive(true);
-                        mover.PlacePanelUnderButton();
+                        panelRT.anchorMin = new Vector2(0.5f, 0.5f);
+                        panelRT.anchorMax = new Vector2(0.5f, 0.5f);
+                        panelRT.pivot = new Vector2(0f, 1f);
+                        panelRT.anchoredPosition = new Vector2(
+                            indicatorRT.anchoredPosition.x,
+                            indicatorRT.anchoredPosition.y - indicatorRT.sizeDelta.y - DraggableMover.PanelDropOffset);
                         scrollRect.verticalNormalizedPosition = 1f;
+                        log.LogInfo($"[FT] open: btn={indicatorRT.anchoredPosition} panel={panelRT.anchoredPosition}");
                         tracker.RefreshRows(true);
                     }
                     else
@@ -338,17 +346,17 @@ namespace SolarExpanseFleetTracker.UI
         internal ManualLogSource Log;
         internal RectTransform PanelRT;
         internal GameObject PanelGO;
+        internal const float PanelDropOffset = 4f;
+        private const float ButtonVerticalStackOffset = 34f;
 
-        private const float ButtonGap = 10f;
-        private const float ReservedLifeSupportButtonWidth = 150f;
         private RectTransform _rt;
         private Canvas _canvas;
         private RectTransform _canvasRT;
         private Vector2 _dragStartAnchoredPos;
         private Vector2 _pressScreenPos;
         private Vector2 _lastCanvasSize;
-        private bool _userMoved;
-        private bool _positionedAgainstLifeSupport;
+        private Vector2 _normalizedPos;
+        private bool _normalizedPosSet;
 
         private void Awake()
         {
@@ -360,7 +368,8 @@ namespace SolarExpanseFleetTracker.UI
         private IEnumerator Start()
         {
             yield return null;
-            PositionNextToKnownButtons();
+            yield return null;
+            PositionNextToNotificationButton();
         }
 
         private void Update()
@@ -370,73 +379,12 @@ namespace SolarExpanseFleetTracker.UI
             if (sz != _lastCanvasSize)
             {
                 _lastCanvasSize = sz;
-                if (!_userMoved) PositionNextToKnownButtons();
-                else ClampButton();
-                PlacePanelUnderButton();
+                RestoreFromNormalizedPos();
+                RepositionPanel();
             }
-
-            if (!_userMoved && !_positionedAgainstLifeSupport && PositionLeftOfLifeSupportButton())
-                PlacePanelUnderButton();
         }
 
-        private void PositionNextToKnownButtons()
-        {
-            if (PositionLeftOfLifeSupportButton()) return;
-            PositionWithLifeSupportSlotReserved();
-        }
-
-        private bool PositionLeftOfLifeSupportButton()
-        {
-            RectTransform lifeSupportRT = FindLifeSupportButton();
-            if (lifeSupportRT == null || _rt == null || _canvasRT == null) return false;
-            Camera cam = _canvas != null && _canvas.renderMode == RenderMode.ScreenSpaceOverlay
-                ? null : _canvas?.worldCamera;
-
-            Vector3[] corners = new Vector3[4];
-            lifeSupportRT.GetWorldCorners(corners);
-
-            Vector2 btnTopLeft;
-            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(
-                    _canvasRT, new Vector2(corners[1].x, corners[1].y), cam, out btnTopLeft))
-            {
-                Log?.LogWarning("[FT] LifeSupport RectTransformUtility failed");
-                return false;
-            }
-
-            _rt.anchoredPosition = new Vector2(btnTopLeft.x - ButtonGap - _rt.sizeDelta.x, btnTopLeft.y);
-            _positionedAgainstLifeSupport = true;
-            ClampButton();
-            return true;
-        }
-
-        private RectTransform FindLifeSupportButton()
-        {
-            if (_canvas == null || _rt == null) return null;
-
-            foreach (RectTransform rt in _canvas.GetComponentsInChildren<RectTransform>(includeInactive: true))
-            {
-                if (rt == null || rt == _rt) continue;
-                string name = rt.gameObject.name ?? "";
-                if (name.Equals("modLifeSupportButton", StringComparison.OrdinalIgnoreCase) ||
-                    name.IndexOf("LifeSupport", StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    if (rt.GetComponent<Button>() != null) return rt;
-                }
-            }
-
-            foreach (TextMeshProUGUI label in _canvas.GetComponentsInChildren<TextMeshProUGUI>(includeInactive: true))
-            {
-                if (label == null || string.IsNullOrEmpty(label.text)) continue;
-                if (label.text.IndexOf("LIFE SUPPORT", StringComparison.OrdinalIgnoreCase) < 0) continue;
-                Button button = label.GetComponentInParent<Button>();
-                RectTransform buttonRT = button != null ? button.GetComponent<RectTransform>() : null;
-                if (buttonRT != null && buttonRT != _rt) return buttonRT;
-            }
-
-            return null;
-        }
-
-        private void PositionWithLifeSupportSlotReserved()
+        private void PositionNextToNotificationButton()
         {
             if (ShowBtnRT == null || _rt == null || _canvasRT == null) return;
             Camera cam = _canvas != null && _canvas.renderMode == RenderMode.ScreenSpaceOverlay
@@ -453,19 +401,10 @@ namespace SolarExpanseFleetTracker.UI
                 return;
             }
 
-            float x = btnTopLeft.x - ButtonGap - ReservedLifeSupportButtonWidth - ButtonGap - _rt.sizeDelta.x;
-            _rt.anchoredPosition = new Vector2(x, btnTopLeft.y - 5f);
-            ClampButton();
-        }
-
-        internal void PlacePanelUnderButton()
-        {
-            if (PanelGO == null || !PanelGO.activeSelf || PanelRT == null || _rt == null) return;
-            Vector2 p = new Vector2(
-                _rt.anchoredPosition.x,
-                _rt.anchoredPosition.y - _rt.sizeDelta.y - 4f);
-            ClampPanel(ref p);
-            PanelRT.anchoredPosition = p;
+            float x = btnTopLeft.x - 10f - _rt.sizeDelta.x;
+            _rt.anchoredPosition = new Vector2(x, btnTopLeft.y - 5f - ButtonVerticalStackOffset);
+            StoreNormalizedPos();
+            Log?.LogInfo($"[FT] indicator at {_rt.anchoredPosition} (btnTopLeft={btnTopLeft})");
         }
 
         public void OnPointerEnter(PointerEventData e) { if (Bg) Bg.color = HoverColor; }
@@ -486,7 +425,6 @@ namespace SolarExpanseFleetTracker.UI
 
         public void OnBeginDrag(PointerEventData e)
         {
-            _userMoved = true;
             _dragStartAnchoredPos = _rt.anchoredPosition;
         }
 
@@ -494,18 +432,39 @@ namespace SolarExpanseFleetTracker.UI
         {
             float scale = _canvas != null ? _canvas.scaleFactor : 1f;
             _rt.anchoredPosition = _dragStartAnchoredPos + (e.position - _pressScreenPos) / scale;
-            ClampButton();
-            PlacePanelUnderButton();
+            Clamp();
+            RepositionPanel();
         }
 
         public void OnEndDrag(PointerEventData e)
         {
-            ClampButton();
-            PlacePanelUnderButton();
+            Clamp();
+            StoreNormalizedPos();
+            RepositionPanel();
             if (Bg) Bg.color = NormalColor;
         }
 
-        private void ClampButton()
+        private void StoreNormalizedPos()
+        {
+            if (_canvasRT == null) return;
+            Rect cr = _canvasRT.rect;
+            if (cr.xMax <= 0f || cr.yMax <= 0f) return;
+            _normalizedPos = new Vector2(_rt.anchoredPosition.x / cr.xMax, _rt.anchoredPosition.y / cr.yMax);
+            _normalizedPosSet = true;
+        }
+
+        private void RestoreFromNormalizedPos()
+        {
+            if (_canvasRT == null) return;
+            if (_normalizedPosSet)
+            {
+                Rect cr = _canvasRT.rect;
+                _rt.anchoredPosition = new Vector2(_normalizedPos.x * cr.xMax, _normalizedPos.y * cr.yMax);
+            }
+            Clamp();
+        }
+
+        private void Clamp()
         {
             if (_canvasRT == null || _rt == null) return;
             Rect cr = _canvasRT.rect;
@@ -516,13 +475,12 @@ namespace SolarExpanseFleetTracker.UI
             _rt.anchoredPosition = p;
         }
 
-        private void ClampPanel(ref Vector2 p)
+        private void RepositionPanel()
         {
-            if (_canvasRT == null || PanelRT == null) return;
-            Rect cr = _canvasRT.rect;
-            Vector2 s = PanelRT.sizeDelta;
-            p.x = Mathf.Clamp(p.x, cr.xMin, cr.xMax - s.x);
-            p.y = Mathf.Clamp(p.y, cr.yMin + s.y, cr.yMax);
+            if (PanelGO == null || !PanelGO.activeSelf || PanelRT == null) return;
+            PanelRT.anchoredPosition = new Vector2(
+                _rt.anchoredPosition.x,
+                _rt.anchoredPosition.y - _rt.sizeDelta.y - PanelDropOffset);
         }
     }
 
@@ -3132,6 +3090,8 @@ namespace SolarExpanseFleetTracker.UI
             }
             catch { }
         }
+
+        private void LateUpdate() => PauseScreenEscPatch.LateUpdateTick();
     }
 
 

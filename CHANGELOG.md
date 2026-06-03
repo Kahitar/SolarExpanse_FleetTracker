@@ -4,8 +4,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+### Added
+- ESC key closes the FleetTracker panel, matching LifeSupportTracker behavior.
+
+### Changed
+- Realigned FleetTracker's default button and panel placement with LifeSupportTracker's left-of-notification-history positioning instead of reserving a LifeSupportTracker slot.
+- Moved FleetTracker's default button to the third slot in the 17-pixel vertical tracker stack below LifeSupportTracker and PowerTracker.
+
 ### Fixed
 - Deferred automatic FleetTracker refreshes while pointer input is held to avoid interfering with game drag-and-drop gestures.
+- Fixed FleetTracker button positioning after screen resize or fullscreen toggle by restoring its relative canvas position instead of clamping the old absolute position.
 
 ## [1.4.0] - 2026-05-20
 ### Changed

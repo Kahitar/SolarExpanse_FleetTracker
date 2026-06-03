@@ -10,7 +10,9 @@ namespace SolarExpanseFleetTracker
     {
         private void Awake()
         {
-            new Harmony("com.mod.solarexpanse.fleettracker").PatchAll();
+            var harmony = new Harmony("com.mod.solarexpanse.fleettracker");
+            harmony.PatchAll();
+            Patches.PauseScreenEscPatch.Apply(harmony, Logger);
             Logger.LogInfo("FleetTracker loaded");
         }
     }
